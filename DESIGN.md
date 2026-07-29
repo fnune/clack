@@ -48,7 +48,7 @@ Two behaviours learned the hard way, both from KWin:
 - A layer surface becomes mappable only after an empty commit answered by a configure. Waiting for a configure on every resize hangs, because a mapped surface at an unchanged size gives the compositor nothing to say.
 - Never unmap. An unmapped layer surface returns without its anchor and assigned to the current workspace only. Clack stays mapped and paints a transparent buffer when idle.
 
-Rendering happens at the output's integer buffer scale; otherwise the compositor upscales and the text blurs.
+Rendering happens at whatever scale the output asks for. `wp_fractional_scale_v1` reports it in 120ths, and `wp_viewporter` maps a buffer drawn at exactly that scale down to the surface's logical size. Scale is tracked in 120ths throughout so the fractional and whole-number paths are the same code; `wl_surface.preferred_buffer_scale` is only consulted when a compositor lacks the fractional protocol. Without this the compositor resamples a buffer drawn for the nearest whole scale, which is plainly visible on a 1.5 or 1.75 output.
 
 No fallback for compositors without layer shell. Clack errors out with a clear message rather than degrading into the failure mode above.
 
@@ -125,10 +125,8 @@ The layers:
 
 1. screenkey's display semantics: composed, translated, raw, and keysyms modes; backspace handling; repeat compression; glyph styles for modifiers.
 2. Theming and a config file.
-3. Fractional scale, via `wp_fractional_scale_v1` and `wp_viewporter`. Integer scale is handled; a 1.75 output still resamples.
-4. Verify the overlay stays above a fullscreen window on KWin.
-5. Hotplug.
-6. Multi-seat and multi-keyboard behaviour.
+3. Hotplug.
+4. Multi-seat and multi-keyboard behaviour.
 
 ## Prior art
 
