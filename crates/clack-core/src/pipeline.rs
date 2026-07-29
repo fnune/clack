@@ -2,6 +2,7 @@ use core::fmt;
 use core::time::Duration;
 
 use crate::clock::Clock;
+use crate::frame::Frame;
 use crate::model::Model;
 use crate::ports::{KeySource, Surface, Translator};
 
@@ -33,6 +34,16 @@ where
 
     pub fn surface(&self) -> &U {
         &self.surface
+    }
+
+    /// Reads and drops whatever was typed, showing nothing. A paused session
+    /// keeps no record of the keys it saw while paused.
+    pub fn discard(&mut self) -> Result<(), PipelineError<S::Error, U::Error>> {
+        self.source.next_batch().map_err(PipelineError::Source)?;
+        self.model.clear();
+        self.surface
+            .present(&Frame::default())
+            .map_err(PipelineError::Surface)
     }
 
     pub fn step(&mut self) -> Result<(), PipelineError<S::Error, U::Error>> {

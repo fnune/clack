@@ -51,6 +51,10 @@ impl Model {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.entries.clear();
+    }
+
     pub fn frame(&self) -> Frame {
         Frame {
             runs: self.entries.iter().map(|entry| entry.run.clone()).collect(),

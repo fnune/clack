@@ -7,14 +7,15 @@
 
 use std::time::Duration;
 
-use clack::render::{LayerOverlay, Style};
+use clack::render::LayerOverlay;
+use clack::{Anchor, Style};
 use clack_core::{Frame, Run, RunKind, Surface};
 
 fn style() -> Style {
     Style {
         font: "Sans Bold 24".to_owned(),
         margin: 96,
-        anchor_top: false,
+        anchor: Anchor::Bottom,
     }
 }
 

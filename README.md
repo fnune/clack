@@ -57,6 +57,17 @@ What it does with it:
 
 The overlay itself is the indicator that Clack is running. Stop it before you type a password.
 
+## As a library
+
+The CLI is a thin consumer of the `clack` crate. Anything implementing `Surface` can take the overlay's place.
+
+```rust
+let mut session = clack::Session::overlay(&clack::Config::default())?;
+let handle = session.handle();   // pause, resume, or stop from another thread
+
+session.run()?;
+```
+
 ## Development
 
 ```sh

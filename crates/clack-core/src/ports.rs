@@ -20,4 +20,10 @@ pub trait Surface {
     type Error;
 
     fn present(&mut self, frame: &Frame) -> Result<(), Self::Error>;
+
+    /// Whether the surface has gone away, for instance because the compositor
+    /// took it down. A session stops when this turns true.
+    fn is_closed(&self) -> bool {
+        false
+    }
 }

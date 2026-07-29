@@ -1,12 +1,14 @@
 use cairo::{Context, Format, ImageSurface};
 use clack_core::{Frame, RunKind, Surface};
+
+use crate::config::{Anchor, Style};
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState};
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::wlr_layer::{
-    Anchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler, LayerSurface,
-    LayerSurfaceConfigure,
+    Anchor as LayerAnchor, KeyboardInteractivity, Layer, LayerShell, LayerShellHandler,
+    LayerSurface, LayerSurfaceConfigure,
 };
 use smithay_client_toolkit::shm::slot::SlotPool;
 use smithay_client_toolkit::shm::{Shm, ShmHandler};
@@ -50,13 +52,6 @@ pub enum RenderError {
     Buffer(String),
     #[error("the overlay does not fit on screen")]
     TooLarge,
-}
-
-#[derive(Clone, Debug)]
-pub struct Style {
-    pub font: String,
-    pub margin: i32,
-    pub anchor_top: bool,
 }
 
 pub struct LayerOverlay {
@@ -117,10 +112,9 @@ impl LayerOverlay {
     /// Every mapping re-states the anchor and margins. KWin drops them when a
     /// surface unmaps, so a remap without them lands centred on screen.
     fn map(&mut self, size: (u32, u32)) -> Result<(), RenderError> {
-        self.state.layer.set_anchor(if self.style.anchor_top {
-            Anchor::TOP
-        } else {
-            Anchor::BOTTOM
+        self.state.layer.set_anchor(match self.style.anchor {
+            Anchor::Top => LayerAnchor::TOP,
+            Anchor::Bottom => LayerAnchor::BOTTOM,
         });
         self.state
             .layer
@@ -216,10 +210,6 @@ impl LayerOverlay {
         Ok(())
     }
 
-    pub fn closed(&self) -> bool {
-        self.state.closed
-    }
-
     /// The compositor scales a buffer up to the output's scale, so drawing at
     /// scale 1 on a HiDPI screen leaves the text blurred.
     fn in_device_pixels(&self, logical: (u32, u32)) -> Result<(u32, u32), RenderError> {
@@ -232,6 +222,10 @@ impl LayerOverlay {
 
 impl Surface for LayerOverlay {
     type Error = RenderError;
+
+    fn is_closed(&self) -> bool {
+        self.state.closed
+    }
 
     fn present(&mut self, frame: &Frame) -> Result<(), Self::Error> {
         if self.scale != self.state.scale {

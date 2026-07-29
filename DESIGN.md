@@ -57,15 +57,23 @@ flowchart LR
   dev["/dev/input/event*"]
   kwin(["compositor"])
 
+  subgraph cli["clack-cli: parses flags, formats output"]
+    main["clack"]
+  end
+
   subgraph clack["clack: implements the traits"]
     reader["input<br/>one reader thread per keyboard"]
     trans["keymap<br/>xkb translation"]
     render["render<br/>cairo and pango"]
+    session["session<br/>composition and control"]
   end
 
   subgraph core["clack-core: links nothing"]
     model["model<br/>recent keys, decay"]
   end
+
+  main --> session
+  session --- reader
 
   dev -->|"uaccess ACL"| reader
   reader -->|KeyEvent| trans
@@ -75,9 +83,15 @@ flowchart LR
   render -->|"layer surface"| kwin
 ```
 
-`clack-core` holds the model and the traits it consumes: `KeySource`, `Translator`, `Surface`, `Clock`. It links nothing and needs no devices, which is the test for whether the layering is real. `clack` implements those traits and wires them in `main`.
+Three crates, so that "the CLI is one consumer among several" is enforced by the dependency graph rather than by intent.
 
-Modules: `input` enumerates and reads devices, reporting per-device access so `--check` can explain a permission failure. `keymap` fetches and compiles the keymap and resolves key events. `render` owns the layer surface and paints with cairo and pango. `model`, in the core crate, holds recent keys and clears the line once the last one goes stale.
+`clack-core` holds the model and the traits it consumes: `KeySource`, `Translator`, `Surface`, `Clock`. It links nothing and needs no devices, which is the test for whether the layering is real.
+
+`clack` implements those traits and composes them. `Session` owns a running Clack and is generic over the surface, so the overlay, a terminal, a tray applet, and a browser are the same thing to it. `Handle` clones cheaply and controls a session from another thread: pause, resume, stop. A paused session keeps reading keys and shows nothing, so nothing typed during a pause is retained. `Report` gathers what `--check` needs as data, leaving the wording to whoever displays it.
+
+`clack-cli` parses flags and formats output. It holds no logic that a GUI would need to reimplement.
+
+Modules in `clack`: `input` enumerates and reads devices, reporting per-device access so a permission failure can be explained. `keymap` fetches and compiles the keymap and resolves key events. `render` owns the layer surface and paints with cairo and pango. `text` writes plain lines to any writer, and doubles as the smallest example of implementing `Surface`.
 
 ## Testing
 

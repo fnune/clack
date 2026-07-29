@@ -8,8 +8,6 @@ repository.workspace = true
 
 [dependencies]
 clack-core = { workspace = true }
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
 cairo-rs = "0.21"
 evdev = "0.13"
 pango = "0.21"
