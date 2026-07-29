@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender, TryRecvError, channel};
 use std::thread;
@@ -5,9 +7,18 @@ use std::time::Duration;
 use std::{fs, io};
 
 use clack_core::{Clock, EvdevCode, KeyEvent, KeySource, KeyState};
-use evdev::{Device, EventType, KeyCode};
+use evdev::{Device, KeyCode};
 
 const DEVICE_DIR: &str = "/dev/input";
+
+/// Layout of the kernel's `struct input_event`: a `timeval` of two C longs,
+/// then `type`, `code`, and `value`.
+const TIMEVAL_SIZE: usize = 2 * size_of::<usize>();
+const TYPE_OFFSET: usize = TIMEVAL_SIZE;
+const CODE_OFFSET: usize = TYPE_OFFSET + 2;
+const VALUE_OFFSET: usize = CODE_OFFSET + 2;
+const EVENT_SIZE: usize = VALUE_OFFSET + 4;
+const EV_KEY: u16 = 0x01;
 
 const EXPIRY_TICK: Duration = Duration::from_millis(50);
 
@@ -116,53 +127,66 @@ impl EvdevSource {
         paths: &[PathBuf],
         clock: C,
     ) -> Result<Self, SourceError> {
-        let mut keyboards = Vec::new();
+        let mut streams = Vec::new();
         for path in paths {
-            let device = Device::open(path)
-                .map_err(|error| SourceError::Opening(path.display().to_string(), error))?;
-            if is_keyboard(&device) {
-                keyboards.push(device);
+            let failed = |error| SourceError::Opening(path.display().to_string(), error);
+            if is_keyboard(&Device::open(path).map_err(failed)?) {
+                streams.push(File::open(path).map_err(failed)?);
             }
         }
 
-        if keyboards.is_empty() {
+        if streams.is_empty() {
             return Err(SourceError::NoKeyboards);
         }
 
+        Ok(Self::from_streams(streams, clock))
+    }
+
+    /// Reads `struct input_event` records from anything, so the reader can be
+    /// exercised over a pipe instead of a kernel device.
+    pub fn from_streams<R, C>(streams: Vec<R>, clock: C) -> Self
+    where
+        R: Read + Send + 'static,
+        C: Clock + Clone + Send + 'static,
+    {
         let (sender, events) = channel();
-        for device in keyboards {
+        for stream in streams {
             let sender = sender.clone();
             let clock = clock.clone();
-            thread::spawn(move || pump(device, &sender, &clock));
+            thread::spawn(move || pump(stream, &sender, &clock));
         }
 
-        Ok(Self { events })
+        Self { events }
     }
 }
 
-fn pump<C: Clock>(mut device: Device, sender: &Sender<KeyEvent>, clock: &C) {
-    loop {
-        let Ok(batch) = device.fetch_events() else {
-            return;
-        };
+fn pump<R: Read, C: Clock>(mut stream: R, sender: &Sender<KeyEvent>, clock: &C) {
+    let mut record = [0_u8; EVENT_SIZE];
 
-        for event in batch {
-            if event.event_type() != EventType::KEY {
-                continue;
-            }
-            let Some(state) = key_state(event.value()) else {
-                continue;
-            };
-            let key = KeyEvent {
-                code: EvdevCode::new(event.code()),
-                state,
-                at: clock.now(),
-            };
-            if sender.send(key).is_err() {
-                return;
-            }
+    while stream.read_exact(&mut record).is_ok() {
+        let Some((code, state)) = decode(&record) else {
+            continue;
+        };
+        let key = KeyEvent {
+            code,
+            state,
+            at: clock.now(),
+        };
+        if sender.send(key).is_err() {
+            return;
         }
     }
+}
+
+fn decode(record: &[u8; EVENT_SIZE]) -> Option<(EvdevCode, KeyState)> {
+    let field = |offset: usize| record.get(offset..offset + 2)?.try_into().ok();
+    if u16::from_ne_bytes(field(TYPE_OFFSET)?) != EV_KEY {
+        return None;
+    }
+
+    let code = EvdevCode::new(u16::from_ne_bytes(field(CODE_OFFSET)?));
+    let raw = record.get(VALUE_OFFSET..EVENT_SIZE)?.try_into().ok()?;
+    Some((code, key_state(i32::from_ne_bytes(raw))?))
 }
 
 const fn key_state(value: i32) -> Option<KeyState> {
@@ -191,5 +215,37 @@ impl KeySource for EvdevSource {
                 Err(TryRecvError::Disconnected) => return Ok(batch),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(type_: u16, code: u16, value: i32) -> [u8; EVENT_SIZE] {
+        let mut record = [0_u8; EVENT_SIZE];
+        record[TYPE_OFFSET..CODE_OFFSET].copy_from_slice(&type_.to_ne_bytes());
+        record[CODE_OFFSET..VALUE_OFFSET].copy_from_slice(&code.to_ne_bytes());
+        record[VALUE_OFFSET..EVENT_SIZE].copy_from_slice(&value.to_ne_bytes());
+        record
+    }
+
+    #[test]
+    fn a_key_press_decodes_to_its_code_and_state() {
+        let decoded = decode(&record(EV_KEY, 30, 1));
+
+        assert_eq!(decoded, Some((EvdevCode::new(30), KeyState::Pressed)));
+    }
+
+    #[test]
+    fn events_that_are_not_key_events_decode_to_nothing() {
+        const EV_REL: u16 = 0x02;
+
+        assert_eq!(decode(&record(EV_REL, 0, 1)), None);
+    }
+
+    #[test]
+    fn key_values_outside_the_known_states_decode_to_nothing() {
+        assert_eq!(decode(&record(EV_KEY, 30, 7)), None);
     }
 }

@@ -38,7 +38,7 @@ The book is object-oriented and .NET-flavoured. The principles carry to Rust; th
 - Ambient Context is an anti-pattern. `Instant::now()`, `SystemTime::now()`, `std::env::var`, and process-global loggers reached from deep code all count. Inject a `Clock`. This is not pedantry: the decay timer, repeat compression, and fade behaviour are all time-driven, and they are only testable if time is a parameter.
 - A growing constructor argument list is a code smell that the type is doing too much.
 - Tests follow the seams DI creates. Real implementations of Stable Dependencies. Hand-written in-memory fakes for Volatile ones: a scripted key source, a fixed keymap, a manually advanced clock, a recording surface that captures draw calls instead of pixels. Do not reach for a mocking crate.
-- Integration tests use the real thing where reasonable. A `uinput` virtual keyboard exercises the real evdev path with known scancodes. A headless compositor exercises the real layer-shell path. Do not mock what you own.
+- Integration tests use the real thing where reasonable: real `input_event` records over a pipe for the reader, a real headless compositor for the layer surface. Do not mock what you own. The limit is the developer's session, which a test must never touch. See the CI section.
 
 ### Layered architecture and abstraction ownership
 
@@ -55,7 +55,7 @@ The book is object-oriented and .NET-flavoured. The principles carry to Rust; th
 Rust's type system is the tool the TypeScript rules were reaching for. Use it, and do not defeat it.
 
 - Deny by default in the workspace lints: `unsafe_code`, `clippy::unwrap_used`, `clippy::expect_used`, `clippy::panic`, `clippy::indexing_slicing`, `clippy::as_conversions`. Library code returns errors; only the Composition Root is allowed to end the process, and it does so with a message.
-- `#![forbid(unsafe_code)]` in every crate that can hold it. FFI wrappers around libinput and xkbcommon are the exception; they isolate `unsafe` behind a safe API, in one module, with the invariant written down.
+- `#![forbid(unsafe_code)]` in every crate that can hold it. FFI wrappers around xkbcommon, cairo, and pango are the exception; they isolate `unsafe` behind a safe API, in one module, with the invariant written down.
 - Relaxing strictness is always a code smell and is fixed, not papered over. An `#[allow(...)]` carries a comment saying why, and is scoped to the smallest item that needs it. A blanket allow at crate root is a bug.
 - Make illegal states unrepresentable. Newtypes over raw integers: `EvdevCode`, `XkbKeycode`, `KeysymValue`. The evdev-to-xkb offset of 8 is a documented conversion between two types, never a stray `+ 8`.
 - Parse, do not validate, at every process boundary: the config file, CLI arguments, environment variables, and the keymap string handed over by the compositor. Deserialize into a typed structure with unknown fields denied, then work with the typed value. Never pass a `HashMap<String, String>` inward.
@@ -129,7 +129,8 @@ The baselines below are the floor, not the ceiling.
 
 - Every PR runs the same baseline: format, lint, test, dependency audit. Same commands locally and in CI.
 - CI runs on Linux only. That is the entire target platform.
-- Headless integration testing is expected, not aspirational. A `uinput` virtual keyboard drives the input layer with known scancodes. A headless compositor drives the render layer, so that layer-shell regressions are caught by machines and not by the maintainer noticing the overlay went behind a window again.
+- Headless integration testing is expected, not aspirational. The input layer is driven over a pipe carrying `input_event` records, and the render layer runs inside a headless sway, so both are exercised with no privileges and no hardware.
+- A test must never reach the developer's session. A `uinput` device is a real kernel keyboard: the compositor routes its events into whatever window has focus, so a test using one types into the developer's windows. For the same reason, screenshots are taken inside the nested compositor and never of the real screen, which would capture whatever the developer had open. Both mistakes were made here once; neither is acceptable twice.
 - The Plasma-specific behaviours that motivated this project, overlay stacking above fullscreen in particular, get an explicit test or an explicit note saying they are manually verified and when.
 
 ### Reproducible, one-command developer environments

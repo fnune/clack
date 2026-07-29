@@ -2,7 +2,7 @@
 
 Wayland-native keystroke visualizer. Screenkey replacement. Must work on KDE Plasma (KWin), but DE-agnostic. Wayland-only. CLI-configured, renders on screen.
 
-Status: scaffold in place. Domain model, evdev input, keymap retrieval, and `--check` work. The overlay is not drawn yet.
+Status: the overlay draws. Input, translation, model, and the layer-shell surface are wired end to end. Theming, config file, and the remaining screenkey semantics are not done.
 
 Engineering principles and conventions: [`engineering/README.md`](engineering/README.md).
 
@@ -133,20 +133,28 @@ clack --check          # report layer-shell support, device access, keymap sourc
 1. Done. Read evdev, translate, print to stdout via `--print`. Untested against real devices: this machine has no ACL on `/dev/input/event*` yet.
 2. Done. Keymap pulled from `wl_keyboard.keymap` with no surface and no focus. KWin sends it.
 3. Done. `--check` reports device access, layer-shell availability, and keymap source.
-4. Next. Layer-shell overlay drawing static text on Plasma, then above a fullscreen window.
-5. Wire the renderer in as a `Surface`, replacing the stdout one.
-6. screenkey semantics: modes, backspace, compression, glyph styles.
+4. Done. Layer-shell overlay on the overlay layer, click-through, anchored, rendering at the output's integer scale.
+5. Done. `LayerOverlay` implements `Surface`; `--print` keeps the stdout one.
+6. Next. screenkey semantics: modes, backspace, compression, glyph styles.
 7. Theming and config file.
 8. Packaging and the README security section.
+9. Overlay above a fullscreen window on KWin, still unverified.
 
 ### Verified on KWin (Plasma 6, this machine)
 
 - `zwlr_layer_shell_v1` is advertised.
 - The compositor sends a full keymap to a client with no surface and no keyboard focus. 36826 bytes, seat `seat0`. The approach in section 2 holds.
 
+### Testing
+
+- Input layer: pipe of `input_event` records. No kernel device, no privileges, runs in CI.
+- Render layer: `scripts/headless-overlay.sh` runs the overlay inside a headless sway and captures it with grim.
+- `uinput` was tried and abandoned. A virtual keyboard is a real kernel device, so the compositor delivers its events to whatever window has focus, meaning the tests typed into the running session.
+
 ### Open questions
 
 - Overlay above fullscreen on KWin: verify, don't assume.
+- Fractional scale. Integer buffer scale is handled; on a 1.75 output the compositor still resamples. `wp_fractional_scale_v1` with `wp_viewporter` is the fix.
 - Layout-group tracking without keyboard focus.
 - Multi-seat and multi-keyboard merge behaviour.
 - Whether to capture mouse buttons at all (screenkey does; defer).

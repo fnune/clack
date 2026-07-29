@@ -64,6 +64,8 @@ pub struct LayerOverlay {
     state: State,
     style: Style,
     size: Option<(u32, u32)>,
+    scale: i32,
+    mapped: bool,
     shown: Frame,
 }
 
@@ -106,22 +108,30 @@ impl LayerOverlay {
                 layer,
                 configured: false,
                 closed: false,
+                scale: 1,
             },
             style,
             size: None,
+            scale: 1,
+            mapped: false,
             shown: Frame::default(),
         })
     }
 
-    fn resize(&mut self, size: (u32, u32)) -> Result<(), RenderError> {
+    /// A layer surface only becomes mappable after an empty commit answered by
+    /// a configure. Re-sizing a mapped surface needs no such handshake, and
+    /// waiting for one hangs: the compositor has nothing new to say.
+    fn map(&mut self, size: (u32, u32)) -> Result<(), RenderError> {
         self.state.layer.set_size(size.0, size.1);
+        self.state.layer.wl_surface().set_buffer_scale(self.scale);
         self.state.layer.commit();
         self.state.configured = false;
-        self.size = Some(size);
 
         for _ in 0..CONFIGURE_ROUNDTRIPS {
             self.queue.roundtrip(&mut self.state)?;
             if self.state.configured {
+                self.size = Some(size);
+                self.mapped = true;
                 return Ok(());
             }
         }
@@ -129,9 +139,14 @@ impl LayerOverlay {
         Err(RenderError::NeverConfigured)
     }
 
+    fn resize(&mut self, size: (u32, u32)) {
+        self.state.layer.set_size(size.0, size.1);
+        self.size = Some(size);
+    }
+
     fn paint(&mut self, frame: &Frame, size: (u32, u32)) -> Result<(), RenderError> {
-        let (width, height) = size;
-        let mut drawn = draw(frame, &self.style.font, size)?;
+        let (width, height) = self.in_device_pixels(size)?;
+        let mut drawn = draw(frame, &self.style.font, (width, height), self.scale)?;
         let stride = drawn.stride();
         let pixels = drawn.data()?;
 
@@ -162,9 +177,10 @@ impl LayerOverlay {
     }
 
     fn hide(&mut self) -> Result<(), RenderError> {
-        if self.size.is_some() {
+        if self.mapped {
             self.state.layer.wl_surface().attach(None, 0, 0);
             self.state.layer.commit();
+            self.mapped = false;
             self.size = None;
         }
 
@@ -175,12 +191,27 @@ impl LayerOverlay {
     pub fn closed(&self) -> bool {
         self.state.closed
     }
+
+    /// The compositor scales a buffer up to the output's scale, so drawing at
+    /// scale 1 on a HiDPI screen leaves the text blurred.
+    fn in_device_pixels(&self, logical: (u32, u32)) -> Result<(u32, u32), RenderError> {
+        let scale = u32::try_from(self.scale).map_err(|_| RenderError::TooLarge)?;
+        let scaled = |side: u32| side.checked_mul(scale).ok_or(RenderError::TooLarge);
+
+        Ok((scaled(logical.0)?, scaled(logical.1)?))
+    }
 }
 
 impl Surface for LayerOverlay {
     type Error = RenderError;
 
     fn present(&mut self, frame: &Frame) -> Result<(), Self::Error> {
+        if self.scale != self.state.scale {
+            self.scale = self.state.scale;
+            self.hide()?;
+            self.shown = Frame::default();
+        }
+
         if *frame == self.shown {
             self.queue.roundtrip(&mut self.state)?;
             return Ok(());
@@ -190,8 +221,10 @@ impl Surface for LayerOverlay {
             self.hide()?;
         } else {
             let size = measure(frame, &self.style.font)?;
-            if self.size != Some(size) {
-                self.resize(size)?;
+            if !self.mapped {
+                self.map(size)?;
+            } else if self.size != Some(size) {
+                self.resize(size);
             }
             self.paint(frame, size)?;
             self.queue.roundtrip(&mut self.state)?;
@@ -222,16 +255,23 @@ fn measure(frame: &Frame, font: &str) -> Result<(u32, u32), RenderError> {
     Ok((extent(width)?, extent(height)?))
 }
 
-fn draw(frame: &Frame, font: &str, size: (u32, u32)) -> Result<ImageSurface, RenderError> {
-    let surface = ImageSurface::create(Format::ARgb32, dimension(size.0)?, dimension(size.1)?)?;
+fn draw(
+    frame: &Frame,
+    font: &str,
+    device: (u32, u32),
+    scale: i32,
+) -> Result<ImageSurface, RenderError> {
+    let surface = ImageSurface::create(Format::ARgb32, dimension(device.0)?, dimension(device.1)?)?;
     let context = Context::new(&surface)?;
 
     context.set_operator(cairo::Operator::Source);
     context.set_source_rgba(0.0, 0.0, 0.0, 0.0);
     context.paint()?;
     context.set_operator(cairo::Operator::Over);
+    context.scale(f64::from(scale), f64::from(scale));
 
-    rounded_rectangle(&context, f64::from(size.0), f64::from(size.1));
+    let logical = |side: u32| f64::from(side) / f64::from(scale);
+    rounded_rectangle(&context, logical(device.0), logical(device.1));
     let Rgba(red, green, blue, alpha) = BACKGROUND;
     context.set_source_rgba(red, green, blue, alpha);
     context.fill()?;
@@ -315,6 +355,7 @@ struct State {
     layer: LayerSurface,
     configured: bool,
     closed: bool,
+    scale: i32,
 }
 
 impl LayerShellHandler for State {
@@ -340,8 +381,9 @@ impl CompositorHandler for State {
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &wl_surface::WlSurface,
-        _: i32,
+        new_factor: i32,
     ) {
+        self.scale = new_factor.max(1);
     }
 
     fn transform_changed(

@@ -80,6 +80,8 @@
             pkgs.cargo-deny
             pkgs.cargo-nextest
             pkgs.evtest
+            pkgs.grim
+            pkgs.sway
             pkgs.wayland-utils
           ]
           ++ nativeBuildInputsFor pkgs
