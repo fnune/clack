@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -30,6 +31,9 @@ pub struct Config {
     /// How long a keystroke stays on screen once typing stops.
     pub timeout: Duration,
     pub style: Style,
+    /// An XKB keymap to use instead of the compositor's own. The compositor's
+    /// is the right answer almost always, since it is what the user configured.
+    pub keymap: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -37,6 +41,7 @@ impl Default for Config {
         Self {
             timeout: Duration::from_millis(1500),
             style: Style::default(),
+            keymap: None,
         }
     }
 }

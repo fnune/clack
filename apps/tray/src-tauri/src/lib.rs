@@ -39,6 +39,11 @@ pub struct Diagnosis {
     pub keymap: bool,
     pub usable: bool,
     pub summary: String,
+    /// Whether installing the udev rule would help. The window offers to do it
+    /// only when it would.
+    pub can_grant_access: bool,
+    pub rule_path: String,
+    pub rule_text: String,
 }
 
 pub fn run() {
@@ -52,6 +57,7 @@ pub fn run() {
             set_paused,
             status,
             diagnose,
+            grant_access,
         ])
         .setup(|app| {
             let settings = Settings::load().unwrap_or_else(|error| {
@@ -262,7 +268,20 @@ fn diagnose() -> Result<Diagnosis, String> {
         keymap: report.can_translate(),
         usable: report.is_usable(),
         summary: summarise(&report),
+        can_grant_access: report.keyboards() == 0
+            && clack::access::status() != clack::RuleStatus::Installed,
+        rule_path: clack::access::rule_path().display().to_string(),
+        rule_text: clack::access::rule_text().to_owned(),
     })
+}
+
+/// Installs the udev rule through polkit, which prompts once and leaves nothing
+/// elevated behind.
+#[tauri::command]
+fn grant_access() -> Result<Diagnosis, String> {
+    clack::access::install().map_err(|error| error.to_string())?;
+
+    diagnose()
 }
 
 fn summarise(report: &clack::Report) -> String {

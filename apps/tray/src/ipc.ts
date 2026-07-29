@@ -25,6 +25,9 @@ export type Diagnosis = {
   keymap: boolean;
   usable: boolean;
   summary: string;
+  canGrantAccess: boolean;
+  rulePath: string;
+  ruleText: string;
 };
 
 const STATUS_EVENT = "clack://status";
@@ -104,6 +107,9 @@ export function parseDiagnosis(value: unknown): Diagnosis {
     keymap: flag(source, "keymap"),
     usable: flag(source, "usable"),
     summary: text(source, "summary"),
+    canGrantAccess: flag(source, "canGrantAccess"),
+    rulePath: text(source, "rulePath"),
+    ruleText: text(source, "ruleText"),
   };
 }
 
@@ -119,6 +125,7 @@ export const api = {
     parseStatus(await invoke("set_paused", { paused })),
   status: async (): Promise<Status> => parseStatus(await invoke("status")),
   diagnose: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("diagnose")),
+  grantAccess: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("grant_access")),
   onStatus: (handle: (status: Status) => void) =>
     listen(STATUS_EVENT, (event) => {
       handle(parseStatus(event.payload));

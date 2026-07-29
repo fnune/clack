@@ -94,6 +94,7 @@
             pkgs.cargo-tauri
             pkgs.evtest
             pkgs.grim
+            pkgs.imagemagick
             pkgs.nodejs_24
             pkgs.pnpm
             pkgs.sway

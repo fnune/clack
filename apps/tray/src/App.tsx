@@ -59,6 +59,28 @@ export function App() {
       {problem !== null && <p className="problem">{problem}</p>}
       {status.failure !== null && <p className="problem">{status.failure}</p>}
 
+      {diagnosis?.canGrantAccess === true && (
+        <section>
+          <h2>Permission</h2>
+          <p className="muted">
+            Clack reads keyboards from <code>/dev/input</code>, which needs permission. This
+            installs <code>{diagnosis.rulePath}</code>, granting read access to whoever is logged in
+            on the active seat, revoked at logout. You will be asked for your password once.
+          </p>
+          <pre>{diagnosis.ruleText.trim()}</pre>
+          <button
+            type="button"
+            onClick={() =>
+              void attempt(async () => {
+                setDiagnosis(await api.grantAccess());
+              })
+            }
+          >
+            Grant access
+          </button>
+        </section>
+      )}
+
       <section>
         <div className="row">
           <button

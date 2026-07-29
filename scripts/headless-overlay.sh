@@ -6,6 +6,11 @@ set -euo pipefail
 output=${1:-overlay.png}
 
 if [[ -n ${CLACK_INSIDE_SWAY:-} ]]; then
+    if [[ ${WAYLAND_DISPLAY:-} == "${CLACK_HOST_DISPLAY:-}" ]]; then
+        echo "refusing to draw on the host compositor" >&2
+        exit 1
+    fi
+
     cargo test --test overlay -- --ignored --nocapture &
     test_pid=$!
     sleep 3
@@ -19,7 +24,7 @@ config=$(mktemp)
 trap 'rm -f "$config"' EXIT
 cat > "$config" <<CONFIG
 output HEADLESS-1 resolution 1920x1080 scale 2
-exec CLACK_INSIDE_SWAY=1 "$(realpath "$0")" "$(realpath -m "$output")"
+exec CLACK_INSIDE_SWAY=1 CLACK_NESTED_COMPOSITOR=1 CLACK_HOST_DISPLAY=${WAYLAND_DISPLAY:-none} "$(realpath "$0")" "$(realpath -m "$output")"
 CONFIG
 
 WLR_BACKENDS=headless \

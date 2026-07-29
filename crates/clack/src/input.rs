@@ -127,12 +127,31 @@ impl EvdevSource {
         paths: &[PathBuf],
         clock: C,
     ) -> Result<Self, SourceError> {
+        let keyboards: Vec<PathBuf> = paths
+            .iter()
+            .filter(|path| Device::open(path).is_ok_and(|device| is_keyboard(&device)))
+            .cloned()
+            .collect();
+
+        if keyboards.is_empty() {
+            return Err(SourceError::NoKeyboards);
+        }
+
+        Self::open_named(&keyboards, clock)
+    }
+
+    /// Opens exactly what it is given. Naming a device is a clearer answer than
+    /// any guess about what counts as a keyboard.
+    pub fn open_named<C: Clock + Clone + Send + 'static>(
+        paths: &[PathBuf],
+        clock: C,
+    ) -> Result<Self, SourceError> {
         let mut streams = Vec::new();
         for path in paths {
-            let failed = |error| SourceError::Opening(path.display().to_string(), error);
-            if is_keyboard(&Device::open(path).map_err(failed)?) {
-                streams.push(File::open(path).map_err(failed)?);
-            }
+            streams.push(
+                File::open(path)
+                    .map_err(|error| SourceError::Opening(path.display().to_string(), error))?,
+            );
         }
 
         if streams.is_empty() {

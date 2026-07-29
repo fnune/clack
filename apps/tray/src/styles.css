@@ -138,3 +138,18 @@ footer {
   border-top: 1px solid var(--line);
   padding-top: 1rem;
 }
+
+pre {
+  margin: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+code {
+  font-size: 0.85em;
+}

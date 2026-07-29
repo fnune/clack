@@ -95,9 +95,18 @@ Modules in `clack`: `input` enumerates and reads devices, reporting per-device a
 
 ## Testing
 
-- Input: a pipe of `input_event` records. No kernel device, no privileges, runs anywhere.
-- Render: `scripts/headless-overlay.sh` runs the overlay inside a headless sway and captures it with grim.
-- `uinput` was tried and abandoned. A virtual keyboard is a real kernel device, so the compositor delivered the tests' keystrokes into whatever window had focus.
+Two hazards shape all of this: a test that types into the developer's session, and a test that draws on their screen. Neither is prevented by being careful, so both are prevented structurally.
+
+- Keys are always fed through a pipe of `input_event` records, never a uinput device. A uinput device is a real kernel keyboard, so the compositor delivers its events to whatever window has focus. That was tried, and it typed into the developer's windows.
+- Anything that opens a surface is gated behind `CLACK_NESTED_COMPOSITOR`, which only the scripts set. A plain `cargo test` skips those tests with a message rather than flashing a surface on screen. The scripts also refuse to run if `WAYLAND_DISPLAY` matches the host's.
+- Screenshots are taken inside the nested compositor. Capturing the real screen once captured a private conversation.
+
+The layers:
+
+- Domain: pure, no devices, no compositor.
+- Translation: a committed xkb keymap fixture, so chords, shift levels, unmapped codes, and lone modifiers are covered without a compositor.
+- Pipeline: `Session::from_parts` with a pipe source, the fixture keymap, and a recording surface.
+- End to end: `scripts/e2e.sh` runs the built binary inside a headless sway, types through a pipe, and checks from screenshots that the overlay appeared where it is anchored and nowhere else.
 
 ## Next
 

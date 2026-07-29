@@ -64,6 +64,7 @@ impl Settings {
 
     pub fn to_config(&self) -> clack::Config {
         clack::Config {
+            keymap: None,
             timeout: Duration::from_secs_f32(self.timeout_seconds.clamp(MIN_TIMEOUT, MAX_TIMEOUT)),
             style: clack::Style {
                 font: self.font.clone(),

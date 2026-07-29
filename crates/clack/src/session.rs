@@ -1,8 +1,9 @@
 use std::error::Error;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use clack_core::{Pipeline, PipelineError, Surface};
+use clack_core::{KeySource, Pipeline, PipelineError, Surface, Translator};
 
 use crate::clock::MonotonicClock;
 use crate::config::Config;
@@ -14,6 +15,10 @@ use crate::wayland::{self, WaylandError};
 const RUNNING: u8 = 0;
 const PAUSED: u8 = 1;
 const STOPPED: u8 = 2;
+
+/// A session reading real keyboards and naming keys with the compositor's own
+/// keymap. Only the surface is left to choose.
+pub type LiveSession<S> = Session<EvdevSource, XkbTranslator, S>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
@@ -66,40 +71,73 @@ pub enum SessionError {
     Overlay(#[from] RenderError),
     #[error("the compositor did not send a keymap, so keys cannot be named")]
     NoKeymap,
+    #[error("reading the keymap {0} failed: {1}")]
+    KeymapFile(String, #[source] std::io::Error),
+    #[error("reading keys failed: {0}")]
+    Source(#[source] Box<dyn Error + Send + Sync>),
     #[error("showing the keystrokes failed: {0}")]
     Surface(#[source] Box<dyn Error + Send + Sync>),
 }
 
-/// A running Clack: devices, keymap, model, and somewhere to show the result.
-/// Callers choose the surface, so the overlay, a terminal, or a future UI are
-/// all the same thing to this type.
+/// A running Clack: keys in, frames out, with a handle to control it. Every
+/// part is a parameter, so the overlay, a terminal, and a future tray or
+/// browser view are all the same thing to this type.
 #[derive(Debug)]
-pub struct Session<S> {
-    pipeline: Pipeline<EvdevSource, XkbTranslator, S, MonotonicClock>,
+pub struct Session<K, T, S> {
+    pipeline: Pipeline<K, T, S, MonotonicClock>,
     handle: Handle,
 }
 
-impl Session<LayerOverlay> {
+impl LiveSession<LayerOverlay> {
     pub fn overlay(config: &Config) -> Result<Self, SessionError> {
         let overlay = LayerOverlay::open(config.style.clone())?;
         Self::with_surface(overlay, config)
     }
 }
 
-impl<S: Surface> Session<S> {
+impl<S: Surface> LiveSession<S> {
     pub fn with_surface(surface: S, config: &Config) -> Result<Self, SessionError> {
         let clock = MonotonicClock::started();
 
-        Ok(Self {
+        Ok(Self::from_parts(
+            EvdevSource::open(clock)?,
+            translator(config)?,
+            surface,
+            config,
+        ))
+    }
+
+    /// Reads only the devices given, skipping the usual "does this look like a
+    /// keyboard" test, because naming a device is a clearer answer than any
+    /// guess Clack could make.
+    pub fn on_devices(
+        surface: S,
+        config: &Config,
+        devices: &[PathBuf],
+    ) -> Result<Self, SessionError> {
+        let clock = MonotonicClock::started();
+
+        Ok(Self::from_parts(
+            EvdevSource::open_named(devices, clock)?,
+            translator(config)?,
+            surface,
+            config,
+        ))
+    }
+}
+
+impl<K: KeySource, T: Translator, S: Surface> Session<K, T, S> {
+    pub fn from_parts(source: K, translator: T, surface: S, config: &Config) -> Self {
+        Self {
             pipeline: Pipeline::new(
-                EvdevSource::open(clock)?,
-                translator()?,
+                source,
+                translator,
                 surface,
-                clock,
+                MonotonicClock::started(),
                 config.timeout,
             ),
             handle: Handle::default(),
-        })
+        }
     }
 
     pub fn handle(&self) -> Handle {
@@ -111,8 +149,12 @@ impl<S: Surface> Session<S> {
     }
 }
 
-impl<S: Surface> Session<S>
+impl<K, T, S> Session<K, T, S>
 where
+    K: KeySource,
+    T: Translator,
+    S: Surface,
+    K::Error: Error + Send + Sync + 'static,
     S::Error: Error + Send + Sync + 'static,
 {
     pub fn step(&mut self) -> Result<State, SessionError> {
@@ -137,17 +179,27 @@ where
     }
 }
 
-fn translator() -> Result<XkbTranslator, SessionError> {
-    let keymap = wayland::probe()?.keymap.ok_or(SessionError::NoKeymap)?;
+fn translator(config: &Config) -> Result<XkbTranslator, SessionError> {
+    let keymap = match &config.keymap {
+        Some(path) => read_keymap(path)?,
+        None => wayland::probe()?.keymap.ok_or(SessionError::NoKeymap)?,
+    };
 
     Ok(XkbTranslator::from_text(&keymap)?)
 }
 
-fn as_session_error<E: Error + Send + Sync + 'static>(
-    error: PipelineError<SourceError, E>,
-) -> SessionError {
+fn read_keymap(path: &Path) -> Result<String, SessionError> {
+    std::fs::read_to_string(path)
+        .map_err(|error| SessionError::KeymapFile(path.display().to_string(), error))
+}
+
+fn as_session_error<K, S>(error: PipelineError<K, S>) -> SessionError
+where
+    K: Error + Send + Sync + 'static,
+    S: Error + Send + Sync + 'static,
+{
     match error {
-        PipelineError::Source(error) => SessionError::Devices(error),
+        PipelineError::Source(error) => SessionError::Source(Box::new(error)),
         PipelineError::Surface(error) => SessionError::Surface(Box::new(error)),
     }
 }

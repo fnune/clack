@@ -21,6 +21,7 @@
     )
 )]
 
+pub mod access;
 pub mod clock;
 pub mod config;
 pub mod diagnostics;
@@ -31,8 +32,9 @@ pub mod session;
 pub mod text;
 pub mod wayland;
 
+pub use access::{AccessError, RuleStatus};
 pub use clack_core::{Frame, Run, RunKind, Surface};
 pub use config::{Anchor, Config, Style};
 pub use diagnostics::{CompositorReport, KeymapSource, Report};
-pub use session::{Handle, Session, SessionError, State};
+pub use session::{Handle, LiveSession, Session, SessionError, State};
 pub use text::TextSurface;

@@ -18,17 +18,15 @@ Or run it without installing: `nix run github:fnune/clack`.
 
 ## Device access
 
-Clack reads `/dev/input/event*`, which needs permission. Install the udev rule:
+Clack reads `/dev/input/event*`, which needs permission:
 
 ```sh
-sudo install -Dm444 packaging/65-clack.rules /etc/udev/rules.d/65-clack.rules
-sudo udevadm control --reload
-sudo udevadm trigger --subsystem-match=input
+clack --install-rule
 ```
 
-That grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no password prompt at launch.
+That shows you the udev rule it wants to write, then asks for your password once through polkit. The tray app offers the same thing as a button when it notices it cannot read anything. Nothing stays elevated afterwards, and the rule grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
 
-`clack --check` tells you whether this worked, along with whether your compositor supports layer shell.
+`clack --check` tells you whether it worked, along with whether your compositor supports layer shell.
 
 ## Use
 
@@ -38,6 +36,8 @@ clack --font "JetBrains Mono Bold 28" --top --margin 140 --timeout 3
 clack --print          # stdout instead of the overlay
 clack --check          # device access, layer shell, keymap
 clack --list-devices
+clack --device /dev/input/event3   # read one keyboard, skipping the usual test
+clack --keymap ./layout.xkb        # override the compositor's keymap
 ```
 
 Ctrl+C to stop.
@@ -86,12 +86,13 @@ Two things that script handles, both host quirks rather than choices:
 ```sh
 nix develop                      # toolchain and system libraries
 cargo test
-./scripts/headless-overlay.sh    # renders the overlay in a headless sway and screenshots it
+./scripts/e2e.sh                 # the built binary, a real compositor, checked from pixels
+./scripts/headless-overlay.sh    # renders the overlay and screenshots it, for looking at
 ```
 
 `direnv allow` enters the shell automatically if you add an `.envrc` containing `use flake`.
 
-Tests never touch your session: the input layer is driven over a pipe of `input_event` records, and the render layer runs inside a nested compositor.
+Tests never touch your session, and cannot be made to by accident. Keys are fed through a pipe rather than a uinput device, so nothing reaches the kernel input layer and the compositor has nothing to deliver to your focused window. Anything that draws runs inside a nested headless sway, gated behind an environment variable the scripts set, so a plain `cargo test` opens nothing.
 
 - [`DESIGN.md`](DESIGN.md): why Wayland forces this shape, and what the alternatives were.
 - [`engineering/README.md`](engineering/README.md): principles and conventions.
