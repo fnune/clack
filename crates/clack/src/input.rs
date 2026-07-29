@@ -34,6 +34,8 @@ pub enum SourceError {
     Disconnected,
     #[error("listing {DEVICE_DIR} failed: {0}")]
     Listing(#[from] io::Error),
+    #[error("opening {0} failed: {1}")]
+    Opening(String, #[source] io::Error),
 }
 
 pub fn survey() -> Result<Vec<DeviceReport>, SourceError> {
@@ -101,23 +103,37 @@ pub struct EvdevSource {
 
 impl EvdevSource {
     pub fn open<C: Clock + Clone + Send + 'static>(clock: C) -> Result<Self, SourceError> {
-        let keyboards: Vec<PathBuf> = survey()?
+        let paths: Vec<PathBuf> = survey()?
             .into_iter()
             .filter(|report| matches!(report.access, Access::Keyboard))
             .map(|report| report.path)
             .collect();
+
+        Self::open_paths(&paths, clock)
+    }
+
+    pub fn open_paths<C: Clock + Clone + Send + 'static>(
+        paths: &[PathBuf],
+        clock: C,
+    ) -> Result<Self, SourceError> {
+        let mut keyboards = Vec::new();
+        for path in paths {
+            let device = Device::open(path)
+                .map_err(|error| SourceError::Opening(path.display().to_string(), error))?;
+            if is_keyboard(&device) {
+                keyboards.push(device);
+            }
+        }
 
         if keyboards.is_empty() {
             return Err(SourceError::NoKeyboards);
         }
 
         let (sender, events) = channel();
-        for path in keyboards {
-            if let Ok(device) = Device::open(&path) {
-                let sender = sender.clone();
-                let clock = clock.clone();
-                thread::spawn(move || pump(device, &sender, &clock));
-            }
+        for device in keyboards {
+            let sender = sender.clone();
+            let clock = clock.clone();
+            thread::spawn(move || pump(device, &sender, &clock));
         }
 
         Ok(Self { events })

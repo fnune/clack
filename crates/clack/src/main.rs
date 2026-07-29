@@ -1,7 +1,3 @@
-mod input;
-mod keymap;
-mod wayland;
-
 use std::io::{self, Write};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
@@ -9,8 +5,10 @@ use std::time::{Duration, Instant};
 use clack_core::{Clock, Frame, Pipeline, Surface, Timestamp};
 use clap::Parser;
 
-use crate::input::{Access, EvdevSource};
-use crate::keymap::XkbTranslator;
+use clack::input::{self, Access, EvdevSource};
+use clack::keymap::XkbTranslator;
+use clack::render::{LayerOverlay, Style};
+use clack::wayland;
 
 #[derive(Debug, Parser)]
 #[command(version, about = "Show the keys you press, on Wayland")]
@@ -30,6 +28,18 @@ struct Cli {
     /// How long a keystroke stays on screen, in seconds
     #[arg(long, value_name = "SECONDS", default_value_t = 1.5)]
     timeout: f32,
+
+    /// Font, in Pango notation
+    #[arg(long, value_name = "FONT", default_value = "Sans Bold 24")]
+    font: String,
+
+    /// Distance from the anchored screen edge, in pixels
+    #[arg(long, value_name = "PIXELS", default_value_t = 96)]
+    margin: i32,
+
+    /// Anchor to the top edge instead of the bottom
+    #[arg(long)]
+    top: bool,
 }
 
 fn main() -> ExitCode {
@@ -42,9 +52,7 @@ fn main() -> ExitCode {
     } else if cli.print {
         print_keys(Duration::from_secs_f32(cli.timeout))
     } else {
-        Err(anyhow::anyhow!(
-            "drawing the overlay is not implemented yet; run with --print to see keystrokes on stdout"
-        ))
+        show_overlay(&cli)
     };
 
     match outcome {
@@ -136,15 +144,10 @@ fn describe_keymap(compositor: &wayland::Compositor) -> String {
 }
 
 fn print_keys(timeout: Duration) -> anyhow::Result<()> {
-    let compositor = wayland::probe()?;
-    let keymap = compositor
-        .keymap
-        .ok_or_else(|| anyhow::anyhow!("the compositor did not send a keymap"))?;
-
     let clock = MonotonicClock::started();
     let mut pipeline = Pipeline::new(
         EvdevSource::open(clock)?,
-        XkbTranslator::from_text(&keymap)?,
+        translator()?,
         StdoutSurface::default(),
         clock,
         timeout,
@@ -153,6 +156,34 @@ fn print_keys(timeout: Duration) -> anyhow::Result<()> {
     loop {
         pipeline.step()?;
     }
+}
+
+fn show_overlay(cli: &Cli) -> anyhow::Result<()> {
+    let mut pipeline = Pipeline::new(
+        EvdevSource::open(MonotonicClock::started())?,
+        translator()?,
+        LayerOverlay::open(Style {
+            font: cli.font.clone(),
+            margin: cli.margin,
+            anchor_top: cli.top,
+        })?,
+        MonotonicClock::started(),
+        Duration::from_secs_f32(cli.timeout),
+    );
+
+    while !pipeline.surface().closed() {
+        pipeline.step()?;
+    }
+
+    Ok(())
+}
+
+fn translator() -> anyhow::Result<XkbTranslator> {
+    let keymap = wayland::probe()?
+        .keymap
+        .ok_or_else(|| anyhow::anyhow!("the compositor did not send a keymap"))?;
+
+    Ok(XkbTranslator::from_text(&keymap)?)
 }
 
 #[derive(Clone, Copy, Debug)]

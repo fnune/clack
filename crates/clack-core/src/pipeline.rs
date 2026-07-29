@@ -31,6 +31,10 @@ where
         }
     }
 
+    pub fn surface(&self) -> &U {
+        &self.surface
+    }
+
     pub fn step(&mut self) -> Result<(), PipelineError<S::Error, U::Error>> {
         let events = self.source.next_batch().map_err(PipelineError::Source)?;
         let now = self.clock.now();

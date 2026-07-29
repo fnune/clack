@@ -28,7 +28,12 @@
 
       toolchainFor = pkgs: pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
 
-      buildInputsFor = pkgs: [ pkgs.libxkbcommon ];
+      buildInputsFor = pkgs: [
+        pkgs.cairo
+        pkgs.glib
+        pkgs.libxkbcommon
+        pkgs.pango
+      ];
       nativeBuildInputsFor = pkgs: [ pkgs.pkg-config ];
 
       clackFor =

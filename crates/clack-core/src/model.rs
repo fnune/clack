@@ -11,6 +11,8 @@ struct Entry {
     at: Timestamp,
 }
 
+const MAX_RUNS: usize = 48;
+
 #[derive(Clone, Debug)]
 pub struct Model {
     timeout: Duration,
@@ -30,14 +32,22 @@ impl Model {
             run: to_run(translated),
             at: now,
         });
+
+        while self.entries.len() > MAX_RUNS {
+            self.entries.pop_front();
+        }
     }
 
+    /// The whole line clears at once. Expiring entry by entry would erode the
+    /// line from the left while the reader is still reading it.
     pub fn expire(&mut self, now: Timestamp) {
-        while let Some(oldest) = self.entries.front() {
-            if now.elapsed_since(oldest.at) < self.timeout {
-                break;
-            }
-            self.entries.pop_front();
+        let idle = self
+            .entries
+            .back()
+            .is_some_and(|newest| now.elapsed_since(newest.at) >= self.timeout);
+
+        if idle {
+            self.entries.clear();
         }
     }
 
@@ -154,15 +164,25 @@ mod tests {
     }
 
     #[test]
-    fn entries_expire_once_they_reach_the_timeout() {
+    fn the_line_survives_until_the_last_key_goes_stale() {
         let mut model = Model::new(Duration::from_millis(500));
         model.record(&typed("a", Modifiers::default()), at(0));
         model.record(&typed("b", Modifiers::default()), at(400));
 
         model.expire(at(600));
-        assert_eq!(model.frame().to_plain(), "b");
+        assert_eq!(model.frame().to_plain(), "ab");
 
         model.expire(at(900));
         assert!(model.frame().is_empty());
+    }
+
+    #[test]
+    fn the_line_stops_growing_at_the_cap() {
+        let mut model = Model::new(Duration::from_secs(60));
+        for _ in 0..MAX_RUNS + 10 {
+            model.record(&typed("a", Modifiers::default()), at(0));
+        }
+
+        assert_eq!(model.frame().runs.len(), MAX_RUNS);
     }
 }

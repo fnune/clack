@@ -1,4 +1,5 @@
 use core::fmt;
+use core::ops::RangeInclusive;
 
 use clack_core::{KeyEvent, KeyState, Modifiers, Translated, Translator, XkbKeycode};
 use xkbcommon::xkb;
@@ -54,19 +55,36 @@ impl Translator for XkbTranslator {
         }
 
         let modifiers = self.held_modifiers();
+        let symbol = self.state.key_get_one_sym(keycode);
         let text = self.state.key_get_utf8(keycode);
-        let keysym = xkb::keysym_get_name(self.state.key_get_one_sym(keycode));
 
         if event.state == KeyState::Pressed {
             self.state.update_key(keycode, xkb::KeyDirection::Down);
         }
 
+        if is_modifier(symbol) {
+            return None;
+        }
+
         Some(Translated {
             text: (!text.is_empty()).then_some(text),
-            keysym,
+            keysym: xkb::keysym_get_name(symbol),
             modifiers,
         })
     }
+}
+
+/// Held on its own a modifier shows nothing: it appears as the prefix of the
+/// chord it produces, once a real key completes that chord.
+fn is_modifier(symbol: xkb::Keysym) -> bool {
+    const SHIFT_THROUGH_HYPER: RangeInclusive<u32> = 0xffe1..=0xffee;
+    const ISO_LEVEL3_SHIFT: u32 = 0xfe03;
+    const ISO_LEVEL5_SHIFT: u32 = 0xfe11;
+    const NUM_LOCK: u32 = 0xff7f;
+
+    let raw = symbol.raw();
+    SHIFT_THROUGH_HYPER.contains(&raw)
+        || matches!(raw, ISO_LEVEL3_SHIFT | ISO_LEVEL5_SHIFT | NUM_LOCK)
 }
 
 impl fmt::Debug for XkbTranslator {
