@@ -75,18 +75,6 @@ impl Supervisor {
         let _ = running.thread.join();
     }
 
-    pub fn set_paused(&self, paused: bool) {
-        let Some(running) = &self.running else {
-            return;
-        };
-
-        if paused {
-            running.handle.pause();
-        } else {
-            running.handle.resume();
-        }
-    }
-
     pub fn state(&self) -> Option<State> {
         self.running.as_ref().map(|running| running.handle.state())
     }

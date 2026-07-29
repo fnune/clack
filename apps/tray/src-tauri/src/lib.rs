@@ -1,3 +1,4 @@
+mod appearance;
 mod supervisor;
 
 use std::sync::Mutex;
@@ -5,10 +6,11 @@ use std::sync::Mutex;
 use serde::Serialize;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent, Wry};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent, Wry};
 
 use clack::Settings;
 
+use crate::appearance::Appearance;
 use crate::supervisor::Supervisor;
 
 const SHOW: &str = "show";
@@ -26,7 +28,6 @@ pub struct AppState {
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub running: bool,
-    pub paused: bool,
     pub failure: Option<String>,
 }
 
@@ -54,10 +55,10 @@ pub fn run() {
             save_settings,
             start,
             stop,
-            set_paused,
             status,
             diagnose,
             grant_access,
+            desktop_appearance,
         ])
         .setup(|app| {
             let settings = Settings::load().unwrap_or_else(|error| {
@@ -194,7 +195,6 @@ fn read_status(app: &AppHandle) -> Status {
         running: supervisor
             .state()
             .is_some_and(|state| state != clack::State::Stopped),
-        paused: supervisor.state() == Some(clack::State::Paused),
         failure: supervisor.failure(),
     }
 }
@@ -215,6 +215,11 @@ fn publish(app: &AppHandle) {
     }
 
     let _ = app.emit(STATUS_EVENT, status);
+}
+
+#[tauri::command]
+fn desktop_appearance() -> Appearance {
+    appearance::read()
 }
 
 #[tauri::command]
@@ -242,18 +247,6 @@ fn stop(app: AppHandle) -> Status {
     publish(&app);
 
     read_status(&app)
-}
-
-#[tauri::command]
-fn set_paused(app: AppHandle, paused: bool, state: State<AppState>) -> Result<Status, String> {
-    state
-        .supervisor
-        .lock()
-        .map_err(|_| "the session lock is poisoned".to_owned())?
-        .set_paused(paused);
-    publish(&app);
-
-    Ok(read_status(&app))
 }
 
 #[tauri::command]

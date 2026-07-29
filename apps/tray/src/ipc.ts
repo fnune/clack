@@ -23,7 +23,6 @@ export type Settings = {
 
 export type Status = {
   running: boolean;
-  paused: boolean;
   failure: string | null;
 };
 
@@ -37,6 +36,11 @@ export type Diagnosis = {
   canGrantAccess: boolean;
   rulePath: string;
   ruleText: string;
+};
+
+export type Appearance = {
+  accent: string | null;
+  dark: boolean | null;
 };
 
 const STATUS_EVENT = "clack://status";
@@ -110,7 +114,6 @@ export function parseStatus(value: unknown): Status {
   const source = fields(value);
   return {
     running: flag(source, "running"),
-    paused: flag(source, "paused"),
     failure: optionalText(source, "failure"),
   };
 }
@@ -130,7 +133,23 @@ export function parseDiagnosis(value: unknown): Diagnosis {
   };
 }
 
+function optionalFlag(source: Record<string, unknown>, name: string): boolean | null {
+  const value = source[name];
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "boolean") throw new ShapeError(name, value);
+  return value;
+}
+
+export function parseAppearance(value: unknown): Appearance {
+  const source = fields(value);
+  return {
+    accent: optionalText(source, "accent"),
+    dark: optionalFlag(source, "dark"),
+  };
+}
+
 export const api = {
+  appearance: async (): Promise<Appearance> => parseAppearance(await invoke("desktop_appearance")),
   loadSettings: async (): Promise<Settings> => parseSettings(await invoke("load_settings")),
   saveSettings: async (settings: Settings): Promise<void> => {
     await invoke("save_settings", { settings });
@@ -138,8 +157,6 @@ export const api = {
   start: async (settings: Settings): Promise<Status> =>
     parseStatus(await invoke("start", { settings })),
   stop: async (): Promise<Status> => parseStatus(await invoke("stop")),
-  setPaused: async (paused: boolean): Promise<Status> =>
-    parseStatus(await invoke("set_paused", { paused })),
   status: async (): Promise<Status> => parseStatus(await invoke("status")),
   diagnose: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("diagnose")),
   grantAccess: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("grant_access")),

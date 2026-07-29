@@ -1,25 +1,53 @@
 :root {
-  --page: #ffffff;
-  --ink: #16181d;
-  --muted: #5c6270;
-  --line: #dcdfe6;
-  --accent: #0369a1;
-  --warn: #b42318;
+  --accent: #2f6fd0;
+
+  --page: #f3f2f0;
+  --surface: #e9e7e3;
+  --ink: #171614;
+  --ink-quiet: #6d6a64;
+  --line: #cfccc5;
+  --off: #c4c0b8;
+  --knob: #ffffff;
+  --warn: #b4451f;
 
   color-scheme: light dark;
-  font-family: system-ui, sans-serif;
-  font-size: 14px;
+  font-family: ui-sans-serif, "Helvetica Neue", Helvetica, "Liberation Sans", Arial, sans-serif;
+  font-size: 13px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #0f1115;
-    --ink: #e8eaee;
-    --muted: #9aa1ae;
-    --line: #262a33;
-    --accent: #7dd3fc;
-    --warn: #fca5a5;
+    --page: #171615;
+    --surface: #201f1d;
+    --ink: #edebe7;
+    --ink-quiet: #949089;
+    --line: #35332f;
+    --off: #46443f;
+    --knob: #d9d6d0;
+    --warn: #e08160;
   }
+}
+
+:root[data-theme="dark"] {
+  --page: #171615;
+  --surface: #201f1d;
+  --ink: #edebe7;
+  --ink-quiet: #949089;
+  --line: #35332f;
+  --off: #46443f;
+  --knob: #d9d6d0;
+  --warn: #e08160;
+}
+
+:root[data-theme="light"] {
+  --page: #f3f2f0;
+  --surface: #e9e7e3;
+  --ink: #171614;
+  --ink-quiet: #6d6a64;
+  --line: #cfccc5;
+  --off: #c4c0b8;
+  --knob: #ffffff;
+  --warn: #b4451f;
 }
 
 * {
@@ -30,126 +58,404 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
 }
 
 main {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  gap: 22px;
+  padding: 16px;
 }
 
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.25rem;
+/* The control. Its frame turns slowly while running, so the window reads as on
+   without anything blinking. */
+
+.frame {
+  position: relative;
+  padding: 1px;
+  border-radius: 10px;
+  background: var(--line);
+  overflow: hidden;
+  transition:
+    box-shadow 260ms ease,
+    background 260ms ease;
 }
 
-h2 {
-  margin: 0 0 0.75rem;
-  font-size: 0.8rem;
+.frame.running {
+  background: color-mix(in srgb, var(--accent) 30%, var(--line));
+  box-shadow: 0 0 26px -12px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+
+.frame.running::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--accent) 40deg,
+    color-mix(in srgb, var(--accent) 35%, transparent) 110deg,
+    transparent 180deg,
+    transparent 200deg,
+    var(--accent) 250deg,
+    color-mix(in srgb, var(--accent) 35%, transparent) 320deg,
+    transparent 360deg
+  );
+  animation: rake 18s linear infinite;
+}
+
+@keyframes rake {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.control {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 260ms ease;
+}
+
+.frame.running .control {
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.name {
+  font-size: 17px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  letter-spacing: -0.01em;
 }
+
+.switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--off);
+  transition: background 220ms ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: 20px;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 220ms cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.frame.running .switch {
+  background: var(--accent);
+}
+
+.frame.running .switch::after {
+  transform: translateX(20px);
+}
+
+/* Settings read as a list of facts until you touch one. */
 
 section {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding-top: 1.25rem;
+  gap: 8px;
+}
+
+h2 {
+  margin: 0;
+  padding-left: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-quiet);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 168px;
+  align-items: center;
+  gap: 12px;
+  min-height: 38px;
+  padding: 0 8px 0 12px;
+}
+
+/* A checkbox is a mark rather than a field, so it keeps its right edge with
+   the others but gives its label the room it needs. */
+.row.check {
+  grid-template-columns: 1fr auto;
+}
+
+.row + .row {
   border-top: 1px solid var(--line);
 }
 
-label {
+.row > span:first-child {
+  color: var(--ink);
+}
+
+.value {
+  display: block;
+  width: 100%;
+  color: var(--ink-quiet);
+}
+
+/* A value that is reported rather than edited. */
+.reading {
+  padding-right: 6px;
+  text-align: right;
+}
+
+/* The field is the bordered box; the number and its unit sit inside it,
+   hugging each other and ending at the same right edge on every row. */
+.field {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-label.inline {
-  flex-direction: row;
   align-items: center;
-  gap: 0.6rem;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
 }
 
-input,
-select {
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--line);
-  border-radius: 6px;
+.suffix {
+  color: var(--ink-quiet);
+  pointer-events: none;
+}
+
+.row:hover .field,
+.field:focus-within {
+  border-color: var(--line);
   background: var(--page);
-  color: inherit;
+}
+
+.field:focus-within {
+  border-color: var(--accent);
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink);
   font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+input[type="number"] {
+  padding: 0;
+  border: 0;
+  appearance: textfield;
+}
+
+input[type="number"]:focus {
+  background: none;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.row:hover input[type="text"] {
+  border-color: var(--line);
+  background: var(--page);
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--page);
+}
+
+/* Two options, both worth seeing, so they are shown rather than hidden behind
+   a menu. */
+.radios {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-right: 6px;
+}
+
+.radios label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+input[type="radio"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  display: grid;
+  place-content: center;
+  appearance: none;
+  border: 1px solid var(--off);
+  border-radius: 50%;
+  background: var(--page);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+input[type="radio"]::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--knob);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+input[type="radio"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="radio"]:checked::after {
+  opacity: 1;
 }
 
 input[type="checkbox"] {
-  width: 1rem;
-  height: 1rem;
-  padding: 0;
-  accent-color: var(--accent);
+  width: 17px;
+  height: 17px;
+  margin: 0 4px 0 0;
+  justify-self: end;
+  display: grid;
+  place-content: center;
+  appearance: none;
+  border: 1px solid var(--off);
+  border-radius: 4px;
+  background: var(--page);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+input[type="checkbox"]::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid var(--knob);
+  border-bottom: 2px solid var(--knob);
+  rotate: -45deg;
+  translate: 0 -1px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  opacity: 1;
 }
 
 input:focus-visible,
 select:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
-.row {
-  display: flex;
-  gap: 0.6rem;
-}
-
-button {
-  flex: 1;
-  padding: 0.55rem 0.9rem;
+.quiet {
+  align-self: flex-start;
+  padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--page);
-  color: inherit;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
+.quiet:hover {
   border-color: var(--accent);
 }
 
-button:disabled {
-  color: var(--muted);
-  cursor: default;
-}
-
-.muted {
+.status,
+.problem {
   margin: 0;
-  color: var(--muted);
-  font-size: 0.85rem;
+  color: var(--ink-quiet);
 }
 
 .problem {
-  margin: 0;
   color: var(--warn);
-  font-size: 0.85rem;
-}
-
-footer {
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
 }
 
 pre {
   margin: 0;
-  padding: 0.6rem;
+  padding: 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow-x: auto;
-  font-size: 0.75rem;
+  font-size: 11px;
+  line-height: 1.4;
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: break-word;
+  color: var(--ink-quiet);
 }
 
-code {
-  font-size: 0.85em;
+@media (prefers-reduced-motion: reduce) {
+  .frame.running::before {
+    animation: none;
+  }
+
+  * {
+    transition-duration: 1ms !important;
+  }
 }
