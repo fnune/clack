@@ -56,7 +56,7 @@
 
           meta = {
             description = "Wayland keystroke visualiser";
-            license = nixpkgs.lib.licenses.gpl3Plus;
+            license = nixpkgs.lib.licenses.mit;
             platforms = systems;
             mainProgram = "clack";
           };
