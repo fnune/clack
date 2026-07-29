@@ -1,0 +1,3 @@
+# Grants the user of the currently active seat read access to keyboard devices
+# via an ACL, revoked at logout. Without this, Clack cannot read key events.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_KEYBOARD}=="1", TAG+="uaccess"

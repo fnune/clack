@@ -1,0 +1,19 @@
+[package]
+name = "clack"
+description = "Wayland keystroke visualiser"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+clack-core = { workspace = true }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+evdev = "0.13"
+thiserror = "2"
+wayland-client = "0.31"
+xkbcommon = "0.8"
+
+[lints]
+workspace = true

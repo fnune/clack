@@ -1,0 +1,168 @@
+use core::time::Duration;
+use std::collections::VecDeque;
+
+use crate::clock::Timestamp;
+use crate::frame::{Frame, Run, RunKind};
+use crate::key::Translated;
+
+#[derive(Clone, Debug)]
+struct Entry {
+    run: Run,
+    at: Timestamp,
+}
+
+#[derive(Clone, Debug)]
+pub struct Model {
+    timeout: Duration,
+    entries: VecDeque<Entry>,
+}
+
+impl Model {
+    pub fn new(timeout: Duration) -> Self {
+        Self {
+            timeout,
+            entries: VecDeque::new(),
+        }
+    }
+
+    pub fn record(&mut self, translated: &Translated, now: Timestamp) {
+        self.entries.push_back(Entry {
+            run: to_run(translated),
+            at: now,
+        });
+    }
+
+    pub fn expire(&mut self, now: Timestamp) {
+        while let Some(oldest) = self.entries.front() {
+            if now.elapsed_since(oldest.at) < self.timeout {
+                break;
+            }
+            self.entries.pop_front();
+        }
+    }
+
+    pub fn frame(&self) -> Frame {
+        Frame {
+            runs: self.entries.iter().map(|entry| entry.run.clone()).collect(),
+        }
+    }
+}
+
+fn to_run(translated: &Translated) -> Run {
+    let printable = translated.text.as_deref().filter(is_printable);
+
+    match (translated.modifiers.is_chord(), printable) {
+        (true, key) => Run {
+            text: chord_label(translated, key),
+            kind: RunKind::Chord,
+        },
+        (false, Some(text)) => Run {
+            text: text.to_owned(),
+            kind: RunKind::Text,
+        },
+        (false, None) => Run {
+            text: translated.keysym.clone(),
+            kind: RunKind::Special,
+        },
+    }
+}
+
+fn chord_label(translated: &Translated, printable: Option<&str>) -> String {
+    let mut parts = translated.modifiers.names();
+    let key = printable.unwrap_or(&translated.keysym);
+    parts.push(key);
+    parts.join("+")
+}
+
+fn is_printable(text: &&str) -> bool {
+    !text.is_empty() && !text.chars().any(char::is_control)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::key::Modifiers;
+
+    fn typed(text: &str, modifiers: Modifiers) -> Translated {
+        Translated {
+            text: Some(text.to_owned()),
+            keysym: text.to_owned(),
+            modifiers,
+        }
+    }
+
+    fn at(millis: u64) -> Timestamp {
+        Timestamp::since_start(Duration::from_millis(millis))
+    }
+
+    #[test]
+    fn plain_text_is_shown_as_typed() {
+        let mut model = Model::new(Duration::from_secs(1));
+        model.record(&typed("h", Modifiers::default()), at(0));
+        model.record(&typed("i", Modifiers::default()), at(10));
+
+        assert_eq!(model.frame().to_plain(), "hi");
+    }
+
+    #[test]
+    fn shift_produces_text_rather_than_a_chord() {
+        let shift = Modifiers {
+            shift: true,
+            ..Modifiers::default()
+        };
+        let mut model = Model::new(Duration::from_secs(1));
+        model.record(&typed("A", shift), at(0));
+
+        assert_eq!(
+            model.frame().runs.first().map(|run| run.kind),
+            Some(RunKind::Text)
+        );
+    }
+
+    #[test]
+    fn a_chord_names_its_modifiers() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        let mut model = Model::new(Duration::from_secs(1));
+        model.record(
+            &Translated {
+                text: None,
+                keysym: "c".to_owned(),
+                modifiers: ctrl,
+            },
+            at(0),
+        );
+
+        assert_eq!(model.frame().to_plain(), "Ctrl+c");
+    }
+
+    #[test]
+    fn a_key_without_printable_output_falls_back_to_its_keysym() {
+        let mut model = Model::new(Duration::from_secs(1));
+        model.record(
+            &Translated {
+                text: Some("\r".to_owned()),
+                keysym: "Return".to_owned(),
+                modifiers: Modifiers::default(),
+            },
+            at(0),
+        );
+
+        assert_eq!(model.frame().to_plain(), "Return");
+    }
+
+    #[test]
+    fn entries_expire_once_they_reach_the_timeout() {
+        let mut model = Model::new(Duration::from_millis(500));
+        model.record(&typed("a", Modifiers::default()), at(0));
+        model.record(&typed("b", Modifiers::default()), at(400));
+
+        model.expire(at(600));
+        assert_eq!(model.frame().to_plain(), "b");
+
+        model.expire(at(900));
+        assert!(model.frame().is_empty());
+    }
+}
