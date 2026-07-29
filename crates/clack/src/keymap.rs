@@ -4,6 +4,8 @@ use core::ops::RangeInclusive;
 use clack_core::{KeyEvent, KeyState, Modifiers, Translated, Translator, XkbKeycode};
 use xkbcommon::xkb;
 
+const NO_SYMBOL: u32 = 0;
+
 #[derive(Debug, thiserror::Error)]
 pub enum KeymapError {
     #[error("the compositor sent a keymap that did not compile")]
@@ -62,7 +64,7 @@ impl Translator for XkbTranslator {
             self.state.update_key(keycode, xkb::KeyDirection::Down);
         }
 
-        if is_modifier(symbol) {
+        if is_unmapped(symbol) || is_modifier(symbol) {
             return None;
         }
 
@@ -72,6 +74,12 @@ impl Translator for XkbTranslator {
             modifiers,
         })
     }
+}
+
+/// Codes the active keymap says nothing about, which some keyboards emit
+/// alongside the keys they are paired with.
+fn is_unmapped(symbol: xkb::Keysym) -> bool {
+    symbol.raw() == NO_SYMBOL
 }
 
 /// Held on its own a modifier shows nothing: it appears as the prefix of the

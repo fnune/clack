@@ -86,14 +86,6 @@ impl LayerOverlay {
 
         let layer =
             shell.create_layer_surface(&handle, surface, Layer::Overlay, Some("clack"), None);
-        layer.set_anchor(if style.anchor_top {
-            Anchor::TOP
-        } else {
-            Anchor::BOTTOM
-        });
-        layer.set_margin(style.margin, 0, style.margin, 0);
-        layer.set_keyboard_interactivity(KeyboardInteractivity::None);
-        layer.set_exclusive_zone(-1);
 
         let pool =
             SlotPool::new(1, &shm).map_err(|error| RenderError::Buffer(error.to_string()))?;
@@ -121,7 +113,22 @@ impl LayerOverlay {
     /// A layer surface only becomes mappable after an empty commit answered by
     /// a configure. Re-sizing a mapped surface needs no such handshake, and
     /// waiting for one hangs: the compositor has nothing new to say.
+    ///
+    /// Every mapping re-states the anchor and margins. KWin drops them when a
+    /// surface unmaps, so a remap without them lands centred on screen.
     fn map(&mut self, size: (u32, u32)) -> Result<(), RenderError> {
+        self.state.layer.set_anchor(if self.style.anchor_top {
+            Anchor::TOP
+        } else {
+            Anchor::BOTTOM
+        });
+        self.state
+            .layer
+            .set_margin(self.style.margin, 0, self.style.margin, 0);
+        self.state
+            .layer
+            .set_keyboard_interactivity(KeyboardInteractivity::None);
+        self.state.layer.set_exclusive_zone(-1);
         self.state.layer.set_size(size.0, size.1);
         self.state.layer.wl_surface().set_buffer_scale(self.scale);
         self.state.layer.commit();
