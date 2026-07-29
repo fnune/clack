@@ -68,6 +68,19 @@ let handle = session.handle();   // pause, resume, or stop from another thread
 session.run()?;
 ```
 
+## Tray app
+
+`apps/tray` is a Tauri app that drives the library: a tray icon, a settings window, and an option to start hidden in the tray. Closing the window leaves it in the tray.
+
+```sh
+./scripts/tray.sh
+```
+
+Two things that script handles, both host quirks rather than choices:
+
+- GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar. Running under XWayland gets you the desktop's own decorations instead, so `GDK_BACKEND=x11` is the default.
+- On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. The script routes it through nixGL.
+
 ## Development
 
 ```sh

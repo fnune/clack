@@ -34,6 +34,18 @@
         pkgs.libxkbcommon
         pkgs.pango
       ];
+
+      # Only the tray app needs these. The CLI package deliberately does not
+      # pull in a browser engine.
+      trayInputsFor = pkgs: [
+        pkgs.gdk-pixbuf
+        pkgs.gtk3
+        pkgs.libayatana-appindicator
+        pkgs.libsoup_3
+        pkgs.librsvg
+        pkgs.openssl
+        pkgs.webkitgtk_4_1
+      ];
       nativeBuildInputsFor = pkgs: [ pkgs.pkg-config ];
 
       clackFor =
@@ -79,13 +91,23 @@
             (toolchainFor pkgs)
             pkgs.cargo-deny
             pkgs.cargo-nextest
+            pkgs.cargo-tauri
             pkgs.evtest
             pkgs.grim
+            pkgs.nodejs_24
+            pkgs.pnpm
             pkgs.sway
             pkgs.wayland-utils
           ]
           ++ nativeBuildInputsFor pkgs
-          ++ buildInputsFor pkgs;
+          ++ buildInputsFor pkgs
+          ++ trayInputsFor pkgs;
+
+          # The tray indicator library is loaded by name at runtime, so it has
+          # to be findable rather than merely linked against.
+          shellHook = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (trayInputsFor pkgs)}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          '';
         };
       });
 

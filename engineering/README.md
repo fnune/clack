@@ -149,6 +149,19 @@ The baselines below are the floor, not the ceiling.
 - Testing: the built-in test harness is the default. `cargo nextest` for the run-time gain on larger suites, `insta` for snapshot assertions over the display model, which is where snapshot testing genuinely pays.
 - Dependency updates via [Renovate](https://docs.renovatebot.com/). Weekly batch, 7 day minimum release age, no auto-merge. Security advisories handled same-day.
 
+### TypeScript, in the tray app
+
+The tray app is a Tauri shell around the library. Its Rust side holds the logic; the web view is a form. Keep it that way, and the same UI code can front a different transport later.
+
+- Strict typing always. `strict: true` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noUnusedLocals`, and `noUnusedParameters`.
+- Relaxing strictness is a code smell and is fixed, not papered over. `any`, `@ts-ignore`, `@ts-expect-error` without explanation, and non-null assertions all count. Biome flags the common ones.
+- Parse at the process boundary. Values crossing the Tauri IPC arrive as `unknown` and are turned into typed values by hand-written parsers that throw on anything unexpected. Types are derived from what was parsed, never asserted into existence. The parsers are short enough not to justify a validation library.
+- Start with the platform. `fetch`, `structuredClone`, `Intl`, and native array methods before reaching for a package.
+- Dependencies: React, React DOM, and the Tauri API. No component library, no state manager, no router, no CSS framework. A settings form needs none of them, and each one is a thing to keep current.
+- Pin exactly: no `^` or `~`. The lockfile is committed and `package.json` changes are code changes.
+- pnpm is the only package manager. Biome is the only linter and formatter.
+- Node comes from the flake, like every other tool.
+
 ### Writing style
 
 - Sentence-case in headings.

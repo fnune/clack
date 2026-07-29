@@ -16,3 +16,21 @@ jobs:
       - run: nix develop --command cargo test
       - run: nix develop --command cargo deny check
       - run: nix build
+
+  tray:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/tray
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/tray/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm build
