@@ -21,7 +21,9 @@ Four candidates. Only one works.
 
 So Clack reads the kernel devices, and the README says so plainly.
 
-**Privileges.** A udev `uaccess` rule is the default: logind grants an ACL to the active seat's user, revoked at logout. The file must sort after `60-input-id.rules`, which sets `ID_INPUT_KEYBOARD`, and before `73-seat-late.rules`, which applies the ACL. Hence `65-`. Rejected: `input` group membership, which is permanent and seat-independent; setuid, which is hard to audit. A pkexec helper passing read-only fds over `SCM_RIGHTS` remains the fallback for users who will not install a rule.
+**Privileges.** A udev `uaccess` rule is the default. On NixOS the flake's module puts it in `services.udev.packages`; everywhere else `clack --install-rule` writes it through polkit, which prompts once and leaves nothing elevated. Installing the package without either step does nothing, because udev only reads rules a system has been told about.
+
+The rule itself: logind grants an ACL to the active seat's user, revoked at logout. The file must sort after `60-input-id.rules`, which sets `ID_INPUT_KEYBOARD`, and before `73-seat-late.rules`, which applies the ACL. Hence `65-`. Rejected: `input` group membership, which is permanent and seat-independent; setuid, which is hard to audit. A pkexec helper passing read-only fds over `SCM_RIGHTS` remains the fallback for users who will not install a rule.
 
 **Not libinput.** wshowkeys and Show Me The Key both use it. Clack wants raw key codes, and libinput's value is pointer acceleration, gesture recognition, and device grouping, all of which would be discarded. It would also force the `open_restricted` privilege callback. The `evdev` crate reads the same devices with no C dependency. The cost is hotplug, recoverable with an inotify watch on `/dev/input`.
 

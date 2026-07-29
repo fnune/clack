@@ -85,6 +85,40 @@
         clack = clackFor pkgs;
       });
 
+      apps = forAllSystems (pkgs: rec {
+        default = clack;
+        clack = {
+          type = "app";
+          program = "${nixpkgs.lib.getExe (clackFor pkgs)}";
+        };
+      });
+
+      # Installing the package alone is not enough: udev only reads rules that
+      # a system has been told about, so a profile install leaves Clack unable
+      # to open any keyboard.
+      nixosModules.default =
+        { config, lib, pkgs, ... }:
+        let
+          cfg = config.programs.clack;
+        in
+        {
+          options.programs.clack = {
+            enable = lib.mkEnableOption "Clack, a Wayland keystroke visualiser";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              defaultText = lib.literalExpression "clack.packages.\${system}.default";
+              description = "Which build of Clack to install.";
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            environment.systemPackages = [ cfg.package ];
+            services.udev.packages = [ cfg.package ];
+          };
+        };
+
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = [

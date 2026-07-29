@@ -6,16 +6,38 @@ Shows the keys you press, on screen, for screencasts and demos. Wayland only.
 
 Tested on KDE Plasma, and should work on any compositor with layer shell. Early days: the overlay works, but there is no config file yet and most of screenkey's display modes are missing.
 
-## Install
+## Try it
 
 ```sh
-nix profile install github:fnune/clack
+nix run github:fnune/clack -- --check
+nix run github:fnune/clack
+```
+
+Clack reads `/dev/input/event*`, which needs permission. `--check` says whether it has that, and whether your compositor supports layer shell.
+
+## Install
+
+On NixOS, add the flake as an input and enable the module. It installs the binary and tells udev about the rule, which a package on its own cannot do:
+
+```nix
+{
+  inputs.clack.url = "github:fnune/clack";
+
+  # in your configuration
+  imports = [ inputs.clack.nixosModules.default ];
+  programs.clack.enable = true;
+}
+```
+
+Anywhere else, install the binary however you like and then grant it access once:
+
+```sh
 clack --install-rule
 ```
 
-Clack reads `/dev/input/event*`, which needs permission. `--install-rule` shows you the udev rule it wants to write, then asks for your password once through polkit. It grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
+That shows you the udev rule it wants to write, then asks for your password once through polkit. It grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
 
-`clack --check` says whether that worked, and whether your compositor supports layer shell.
+`nix profile install` on its own is not enough: udev only reads rules a system has been told about, so the rule sits unused in your profile and Clack cannot open any keyboard. Use the module, or run `--install-rule`.
 
 ## Use
 
