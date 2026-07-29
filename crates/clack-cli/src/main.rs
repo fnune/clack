@@ -1,14 +1,22 @@
 use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::Duration;
 
 use clack::access::{self, RuleStatus};
 use clack::diagnostics::{CompositorReport, KeymapSource};
 use clack::input::Access;
-use clack::{Anchor, Config, LiveSession, Report, Style, TextSurface};
-use clap::Parser;
+use clack::{Config, LiveSession, Report, Settings, TextSurface};
+use clap::{Parser, ValueEnum};
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Edge {
+    Top,
+    Bottom,
+}
+
+/// Every appearance option defaults to what the settings file says, and the
+/// settings file defaults to what the tray app writes. Flags override both, for
+/// this run only.
 #[derive(Debug, Parser)]
 #[command(name = "clack", version, about = "Show the keys you press, on Wayland")]
 struct Cli {
@@ -24,29 +32,37 @@ struct Cli {
     #[arg(long)]
     print: bool,
 
+    /// Read settings from here instead of the usual place
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+
+    /// Show where the settings file lives, then exit
+    #[arg(long)]
+    config_path: bool,
+
     /// How long a keystroke stays on screen, in seconds
-    #[arg(long, value_name = "SECONDS", default_value_t = 1.5)]
-    timeout: f32,
+    #[arg(long, value_name = "SECONDS")]
+    timeout: Option<f32>,
 
     /// Font, in Pango notation
-    #[arg(long, value_name = "FONT", default_value = "Sans Bold 24")]
-    font: String,
+    #[arg(long, value_name = "FONT")]
+    font: Option<String>,
 
     /// Distance from the anchored screen edge, in pixels
-    #[arg(long, value_name = "PIXELS", default_value_t = 96)]
-    margin: i32,
+    #[arg(long, value_name = "PIXELS")]
+    margin: Option<i32>,
 
-    /// Anchor to the top edge instead of the bottom
-    #[arg(long)]
-    top: bool,
-
-    /// Read only this device, skipping the usual keyboard test. Repeatable
-    #[arg(long = "device", value_name = "PATH")]
-    devices: Vec<PathBuf>,
+    /// Which screen edge to anchor to
+    #[arg(long, value_name = "EDGE")]
+    anchor: Option<Edge>,
 
     /// Use this XKB keymap instead of the one the compositor is using
     #[arg(long, value_name = "PATH")]
     keymap: Option<PathBuf>,
+
+    /// Read only this device, skipping the usual keyboard test. Repeatable
+    #[arg(long = "device", value_name = "PATH")]
+    devices: Vec<PathBuf>,
 
     /// Install the udev rule that lets Clack read keyboards, then exit
     #[arg(long)]
@@ -58,27 +74,41 @@ struct Cli {
 }
 
 impl Cli {
-    fn config(&self) -> Config {
-        Config {
-            timeout: Duration::from_secs_f32(self.timeout),
-            keymap: self.keymap.clone(),
-            style: Style {
-                font: self.font.clone(),
-                margin: self.margin,
-                anchor: if self.top {
-                    Anchor::Top
-                } else {
-                    Anchor::Bottom
-                },
-            },
+    fn config(&self) -> anyhow::Result<Config> {
+        let mut settings = match &self.config {
+            Some(path) => Settings::load_from(path)?,
+            None => Settings::load()?,
+        };
+
+        if let Some(font) = &self.font {
+            settings.overlay.font = font.clone();
         }
+        if let Some(margin) = self.margin {
+            settings.overlay.margin = margin;
+        }
+        if let Some(timeout) = self.timeout {
+            settings.overlay.timeout_seconds = timeout;
+        }
+        if let Some(anchor) = self.anchor {
+            settings.overlay.anchor = match anchor {
+                Edge::Top => clack::Anchor::Top,
+                Edge::Bottom => clack::Anchor::Bottom,
+            };
+        }
+        if self.keymap.is_some() {
+            settings.overlay.keymap = self.keymap.clone();
+        }
+
+        Ok(settings.overlay.to_config())
     }
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let outcome = if cli.write_udev_rule {
+    let outcome = if cli.config_path {
+        show_config_path()
+    } else if cli.write_udev_rule {
         access::write_rule_as_root().map_err(anyhow::Error::from)
     } else if cli.install_rule {
         install_rule()
@@ -101,26 +131,35 @@ fn main() -> ExitCode {
     }
 }
 
+fn show_config_path() -> anyhow::Result<()> {
+    println!("{}", clack::settings::path()?.display());
+    Ok(())
+}
+
 fn show_overlay(cli: &Cli) -> anyhow::Result<()> {
-    let config = cli.config();
+    let config = cli.config()?;
     let overlay = clack::render::LayerOverlay::open(config.style.clone())?;
 
-    session(overlay, cli)?.run()?;
+    session(overlay, cli, &config)?.run()?;
     Ok(())
 }
 
 fn print_keys(cli: &Cli) -> anyhow::Result<()> {
-    session(TextSurface::new(io::stdout()), cli)?.run()?;
+    let config = cli.config()?;
+
+    session(TextSurface::new(io::stdout()), cli, &config)?.run()?;
     Ok(())
 }
 
-fn session<S: clack::Surface>(surface: S, cli: &Cli) -> anyhow::Result<LiveSession<S>> {
-    let config = cli.config();
-
+fn session<S: clack::Surface>(
+    surface: S,
+    cli: &Cli,
+    config: &Config,
+) -> anyhow::Result<LiveSession<S>> {
     Ok(if cli.devices.is_empty() {
-        LiveSession::with_surface(surface, &config)?
+        LiveSession::with_surface(surface, config)?
     } else {
-        LiveSession::on_devices(surface, &config, &cli.devices)?
+        LiveSession::on_devices(surface, config, &cli.devices)?
     })
 }
 

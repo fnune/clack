@@ -93,6 +93,8 @@ Three crates, so that "the CLI is one consumer among several" is enforced by the
 
 `clack-cli` parses flags and formats output. It holds no logic that a GUI would need to reimplement.
 
+`settings` owns the file format, at `$XDG_CONFIG_HOME/clack/config.toml`. It is deliberately a separate type from `Config`: the file is a wire format that can be half-written, out of date, or wrong, and `to_config` is where it becomes something a session can run. The command line and the tray both go through it, so they cannot drift apart. Unknown keys are rejected rather than ignored, and a file that exists but cannot be parsed is an error rather than a silent reset to defaults.
+
 Modules in `clack`: `input` enumerates and reads devices, reporting per-device access so a permission failure can be explained. `keymap` fetches and compiles the keymap and resolves key events. `render` owns the layer surface and paints with cairo and pango. `text` writes plain lines to any writer, and doubles as the smallest example of implementing `Surface`.
 
 ## The tray app

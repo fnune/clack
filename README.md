@@ -53,6 +53,24 @@ clack --keymap ./layout.xkb         # override the compositor's keymap
 
 Ctrl+C to stop. Layouts come from your compositor, so what you configured in your desktop settings is what Clack shows.
 
+## Configuration
+
+One file, at `$XDG_CONFIG_HOME/clack/config.toml`, drives both the command line and the tray. `clack --config-path` prints where that is. Flags override it for a single run, and the tray writes to it as you change things.
+
+```toml
+[overlay]
+font = "Sans Bold 24"
+margin = 96
+anchor = "bottom"
+timeout_seconds = 1.5
+
+[tray]
+start_hidden = false
+start_overlay = false
+```
+
+Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a silent no-op, so a typo tells you instead of quietly doing nothing.
+
 ## What it can see
 
 Clack reads every keystroke on the machine, including keystrokes typed into other applications, including passwords. There is no way to show your keystrokes without that ability.

@@ -1,7 +1,10 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Anchor {
     Top,
     #[default]

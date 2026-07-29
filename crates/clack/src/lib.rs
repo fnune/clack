@@ -29,6 +29,7 @@ pub mod input;
 pub mod keymap;
 pub mod render;
 pub mod session;
+pub mod settings;
 pub mod text;
 pub mod wayland;
 
@@ -37,4 +38,5 @@ pub use clack_core::{Frame, Run, RunKind, Surface};
 pub use config::{Anchor, Config, Style};
 pub use diagnostics::{CompositorReport, KeymapSource, Report};
 pub use session::{Handle, LiveSession, Session, SessionError, State};
+pub use settings::{Overlay, Settings, SettingsError, Tray};
 pub use text::TextSurface;

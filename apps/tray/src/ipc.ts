@@ -3,13 +3,22 @@ import { listen } from "@tauri-apps/api/event";
 
 export type Anchor = "top" | "bottom";
 
-export type Settings = {
+export type Overlay = {
   font: string;
   margin: number;
-  timeoutSeconds: number;
   anchor: Anchor;
-  startHidden: boolean;
-  startOverlay: boolean;
+  timeout_seconds: number;
+  keymap: string | null;
+};
+
+export type Tray = {
+  start_hidden: boolean;
+  start_overlay: boolean;
+};
+
+export type Settings = {
+  overlay: Overlay;
+  tray: Tray;
 };
 
 export type Status = {
@@ -79,13 +88,21 @@ function optionalText(source: Record<string, unknown>, name: string): string | n
 
 export function parseSettings(value: unknown): Settings {
   const source = fields(value);
+  const overlay = fields(source.overlay);
+  const tray = fields(source.tray);
+
   return {
-    font: text(source, "font"),
-    margin: count(source, "margin"),
-    timeoutSeconds: count(source, "timeoutSeconds"),
-    anchor: anchor(source, "anchor"),
-    startHidden: flag(source, "startHidden"),
-    startOverlay: flag(source, "startOverlay"),
+    overlay: {
+      font: text(overlay, "font"),
+      margin: count(overlay, "margin"),
+      anchor: anchor(overlay, "anchor"),
+      timeout_seconds: count(overlay, "timeout_seconds"),
+      keymap: optionalText(overlay, "keymap"),
+    },
+    tray: {
+      start_hidden: flag(tray, "start_hidden"),
+      start_overlay: flag(tray, "start_overlay"),
+    },
   };
 }
 

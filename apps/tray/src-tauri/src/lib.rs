@@ -1,4 +1,3 @@
-mod settings;
 mod supervisor;
 
 use std::sync::Mutex;
@@ -8,7 +7,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent, Wry};
 
-use crate::settings::Settings;
+use clack::Settings;
+
 use crate::supervisor::Supervisor;
 
 const SHOW: &str = "show";
@@ -67,14 +67,14 @@ pub fn run() {
 
             install_tray(app.handle())?;
 
-            if settings.start_overlay {
+            if settings.tray.start_overlay {
                 let handle = app.handle().clone();
                 if let Err(error) = start_session(&handle, &settings) {
                     eprintln!("clack-tray: {error}");
                 }
             }
 
-            if !settings.start_hidden {
+            if !settings.tray.start_hidden {
                 show_window(app.handle());
             }
 
@@ -171,7 +171,7 @@ fn start_session(app: &AppHandle, settings: &Settings) -> Result<(), String> {
         .map_err(|_| "the session lock is poisoned".to_owned())?;
 
     supervisor
-        .start(settings.to_config())
+        .start(settings.overlay.to_config())
         .map_err(|error| error.to_string())
 }
 

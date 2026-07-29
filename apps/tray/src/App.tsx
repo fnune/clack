@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Diagnosis, type Settings, type Status } from "./ipc";
+import { api, type Diagnosis, type Overlay, type Settings, type Status, type Tray } from "./ipc";
 
 const EMPTY_STATUS: Status = { running: false, paused: false, failure: null };
 
@@ -43,11 +43,16 @@ export function App() {
     );
   }
 
-  const edit = (change: Partial<Settings>) => {
-    const next = { ...settings, ...change };
+  const save = (next: Settings) => {
     setSettings(next);
     void attempt(() => api.saveSettings(next));
   };
+
+  const editOverlay = (change: Partial<Overlay>) =>
+    save({ ...settings, overlay: { ...settings.overlay, ...change } });
+
+  const editTray = (change: Partial<Tray>) =>
+    save({ ...settings, tray: { ...settings.tray, ...change } });
 
   return (
     <main>
@@ -120,8 +125,8 @@ export function App() {
         <label>
           Font
           <input
-            value={settings.font}
-            onChange={(event) => edit({ font: event.target.value })}
+            value={settings.overlay.font}
+            onChange={(event) => editOverlay({ font: event.target.value })}
             placeholder="Sans Bold 24"
           />
           <span className="muted">Pango notation: family, style, size.</span>
@@ -130,8 +135,10 @@ export function App() {
         <label>
           Edge
           <select
-            value={settings.anchor}
-            onChange={(event) => edit({ anchor: event.target.value === "top" ? "top" : "bottom" })}
+            value={settings.overlay.anchor}
+            onChange={(event) =>
+              editOverlay({ anchor: event.target.value === "top" ? "top" : "bottom" })
+            }
           >
             <option value="bottom">Bottom</option>
             <option value="top">Top</option>
@@ -144,8 +151,8 @@ export function App() {
             type="number"
             min={0}
             max={4000}
-            value={settings.margin}
-            onChange={(event) => edit({ margin: Number(event.target.value) })}
+            value={settings.overlay.margin}
+            onChange={(event) => editOverlay({ margin: Number(event.target.value) })}
           />
           <span className="muted">Pixels.</span>
         </label>
@@ -157,8 +164,8 @@ export function App() {
             min={0.2}
             max={30}
             step={0.1}
-            value={settings.timeoutSeconds}
-            onChange={(event) => edit({ timeoutSeconds: Number(event.target.value) })}
+            value={settings.overlay.timeout_seconds}
+            onChange={(event) => editOverlay({ timeout_seconds: Number(event.target.value) })}
           />
           <span className="muted">Seconds after the last key.</span>
         </label>
@@ -170,8 +177,8 @@ export function App() {
         <label className="inline">
           <input
             type="checkbox"
-            checked={settings.startHidden}
-            onChange={(event) => edit({ startHidden: event.target.checked })}
+            checked={settings.tray.start_hidden}
+            onChange={(event) => editTray({ start_hidden: event.target.checked })}
           />
           Start in the tray, without this window
         </label>
@@ -179,8 +186,8 @@ export function App() {
         <label className="inline">
           <input
             type="checkbox"
-            checked={settings.startOverlay}
-            onChange={(event) => edit({ startOverlay: event.target.checked })}
+            checked={settings.tray.start_overlay}
+            onChange={(event) => editTray({ start_overlay: event.target.checked })}
           />
           Start showing keys straight away
         </label>
