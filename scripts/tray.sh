@@ -10,6 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../apps/tray"
 
 export GDK_BACKEND="${GDK_BACKEND:-x11}"
+export LD_LIBRARY_PATH="${CLACK_TRAY_LIBRARY_PATH:-}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 if [[ -e /etc/NIXOS ]]; then
     exec pnpm tauri dev "$@"

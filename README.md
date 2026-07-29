@@ -4,45 +4,32 @@ Shows the keys you press, on screen, for screencasts and demos. Wayland only.
 
 [Screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot do this on Wayland: it asks the X server for every key event, and Wayland has no equivalent, by design. Clack reads the kernel's input devices instead, and draws on a `wlr-layer-shell` surface so the overlay stays above other windows rather than behind them.
 
-Tested on KDE Plasma. Should work on any compositor implementing layer shell, which includes GNOME, sway, Hyprland, and COSMIC.
-
-Early days. The overlay works; theming beyond a few flags, a config file, and most of screenkey's display modes do not exist yet.
+Tested on KDE Plasma, and should work on any compositor with layer shell. Early days: the overlay works, but there is no config file yet and most of screenkey's display modes are missing.
 
 ## Install
 
 ```sh
 nix profile install github:fnune/clack
-```
-
-Or run it without installing: `nix run github:fnune/clack`.
-
-## Device access
-
-Clack reads `/dev/input/event*`, which needs permission:
-
-```sh
 clack --install-rule
 ```
 
-That shows you the udev rule it wants to write, then asks for your password once through polkit. The tray app offers the same thing as a button when it notices it cannot read anything. Nothing stays elevated afterwards, and the rule grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
+Clack reads `/dev/input/event*`, which needs permission. `--install-rule` shows you the udev rule it wants to write, then asks for your password once through polkit. It grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
 
-`clack --check` tells you whether it worked, along with whether your compositor supports layer shell.
+`clack --check` says whether that worked, and whether your compositor supports layer shell.
 
 ## Use
 
 ```sh
 clack
 clack --font "JetBrains Mono Bold 28" --top --margin 140 --timeout 3
-clack --print          # stdout instead of the overlay
-clack --check          # device access, layer shell, keymap
+clack --print                       # stdout instead of the overlay
+clack --check                       # device access, layer shell, keymap
 clack --list-devices
-clack --device /dev/input/event3   # read one keyboard, skipping the usual test
-clack --keymap ./layout.xkb        # override the compositor's keymap
+clack --device /dev/input/event3    # one keyboard, skipping the usual test
+clack --keymap ./layout.xkb         # override the compositor's keymap
 ```
 
-Ctrl+C to stop.
-
-Clack takes the keymap from your compositor, so the layouts you configured in your desktop settings are the ones it displays.
+Ctrl+C to stop. Layouts come from your compositor, so what you configured in your desktop settings is what Clack shows.
 
 ## What it can see
 
@@ -53,46 +40,39 @@ What it does with it:
 - Nothing is written to disk. No history, no cache.
 - No network code exists in this project.
 - No keystroke enters a log, at any level, in any build.
-- Only devices that report as keyboards are opened, read-only, never grabbed.
+- Only devices reporting as keyboards are opened, read-only, never grabbed.
 
-The overlay itself is the indicator that Clack is running. Stop it before you type a password.
-
-## As a library
-
-The CLI is a thin consumer of the `clack` crate. Anything implementing `Surface` can take the overlay's place.
-
-```rust
-let mut session = clack::Session::overlay(&clack::Config::default())?;
-let handle = session.handle();   // pause, resume, or stop from another thread
-
-session.run()?;
-```
+The overlay is the indicator that Clack is running. Stop it before you type a password.
 
 ## Tray app
 
-`apps/tray` is a Tauri app that drives the library: a tray icon, a settings window, and an option to start hidden in the tray. Closing the window leaves it in the tray.
+`apps/tray` is a Tauri app driving the library: a tray icon, a settings window, and an option to start hidden in the tray. Closing the window leaves it running in the tray.
 
 ```sh
 ./scripts/tray.sh
 ```
 
-Two things that script handles, both host quirks rather than choices:
+## As a library
 
-- GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar. Running under XWayland gets you the desktop's own decorations instead, so `GDK_BACKEND=x11` is the default.
-- On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. The script routes it through nixGL.
+The CLI and the tray are both consumers of the `clack` crate. Anything implementing `Surface` can take the overlay's place.
+
+```rust
+let mut session = clack::LiveSession::overlay(&clack::Config::default())?;
+let handle = session.handle();   // pause, resume, or stop from another thread
+
+session.run()?;
+```
 
 ## Development
 
 ```sh
-nix develop                      # toolchain and system libraries
+nix develop
 cargo test
 ./scripts/e2e.sh                 # the built binary, a real compositor, checked from pixels
-./scripts/headless-overlay.sh    # renders the overlay and screenshots it, for looking at
+./scripts/headless-overlay.sh    # draws the overlay and screenshots it, for looking at
 ```
 
-`direnv allow` enters the shell automatically if you add an `.envrc` containing `use flake`.
-
-Tests never touch your session, and cannot be made to by accident. Keys are fed through a pipe rather than a uinput device, so nothing reaches the kernel input layer and the compositor has nothing to deliver to your focused window. Anything that draws runs inside a nested headless sway, gated behind an environment variable the scripts set, so a plain `cargo test` opens nothing.
+Tests cannot reach your session: keys are fed through a pipe rather than a uinput device, and anything that draws runs inside a nested compositor.
 
 - [`DESIGN.md`](DESIGN.md): why Wayland forces this shape, and what the alternatives were.
 - [`engineering/README.md`](engineering/README.md): principles and conventions.

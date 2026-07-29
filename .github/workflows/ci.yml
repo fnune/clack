@@ -25,13 +25,8 @@ jobs:
         working-directory: apps/tray
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: apps/tray/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm typecheck
-      - run: pnpm build
+      - uses: cachix/install-nix-action@v31
+      - run: nix develop ../.. --command pnpm install --frozen-lockfile
+      - run: nix develop ../.. --command pnpm check
+      - run: nix develop ../.. --command pnpm typecheck
+      - run: nix develop ../.. --command pnpm build

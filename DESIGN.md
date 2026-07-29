@@ -93,6 +93,15 @@ Three crates, so that "the CLI is one consumer among several" is enforced by the
 
 Modules in `clack`: `input` enumerates and reads devices, reporting per-device access so a permission failure can be explained. `keymap` fetches and compiles the keymap and resolves key events. `render` owns the layer surface and paints with cairo and pango. `text` writes plain lines to any writer, and doubles as the smallest example of implementing `Surface`.
 
+## The tray app
+
+`apps/tray` is a Tauri shell around the library, kept out of the Cargo workspace so the CLI's build and CI stay free of a browser engine. Its Rust side runs a `Session` on a background thread and holds a `Handle`; the web view is a form.
+
+Two host quirks it works around, neither a choice:
+
+- GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar, which looks foreign on KDE. Running under XWayland gets the desktop's own decorations instead.
+- On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. `scripts/tray.sh` routes it through nixGL.
+
 ## Testing
 
 Two hazards shape all of this: a test that types into the developer's session, and a test that draws on their screen. Neither is prevented by being careful, so both are prevented structurally.
