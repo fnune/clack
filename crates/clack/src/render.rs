@@ -146,8 +146,9 @@ impl LayerOverlay {
         Err(RenderError::NeverConfigured)
     }
 
-    fn resize(&mut self, size: (u32, u32)) {
+    fn apply_size(&mut self, size: (u32, u32)) {
         self.state.layer.set_size(size.0, size.1);
+        self.state.layer.wl_surface().set_buffer_scale(self.scale);
         self.size = Some(size);
     }
 
@@ -183,15 +184,35 @@ impl LayerOverlay {
         Ok(())
     }
 
-    fn hide(&mut self) -> Result<(), RenderError> {
-        if self.mapped {
-            self.state.layer.wl_surface().attach(None, 0, 0);
-            self.state.layer.commit();
-            self.mapped = false;
-            self.size = None;
+    /// Clears the overlay by painting nothing, rather than by unmapping. An
+    /// unmapped layer surface comes back on the current workspace only, and
+    /// without its anchor, so it stops following the user between workspaces.
+    fn blank(&mut self) -> Result<(), RenderError> {
+        let size = self.size.unwrap_or((1, 1));
+        if self.size != Some(size) {
+            self.apply_size(size);
         }
 
-        self.queue.roundtrip(&mut self.state)?;
+        let (width, height) = self.in_device_pixels(size)?;
+        let (buffer, canvas) = self
+            .state
+            .pool
+            .create_buffer(
+                dimension(width)?,
+                dimension(height)?,
+                dimension(width.saturating_mul(4))?,
+                wl_shm::Format::Argb8888,
+            )
+            .map_err(|error| RenderError::Buffer(error.to_string()))?;
+        canvas.fill(0);
+
+        let surface = self.state.layer.wl_surface();
+        surface.damage_buffer(0, 0, dimension(width)?, dimension(height)?);
+        buffer
+            .attach_to(surface)
+            .map_err(|error| RenderError::Buffer(error.to_string()))?;
+        self.state.layer.commit();
+
         Ok(())
     }
 
@@ -215,7 +236,7 @@ impl Surface for LayerOverlay {
     fn present(&mut self, frame: &Frame) -> Result<(), Self::Error> {
         if self.scale != self.state.scale {
             self.scale = self.state.scale;
-            self.hide()?;
+            self.size = None;
             self.shown = Frame::default();
         }
 
@@ -225,18 +246,20 @@ impl Surface for LayerOverlay {
         }
 
         if frame.is_empty() {
-            self.hide()?;
+            if self.mapped {
+                self.blank()?;
+            }
         } else {
             let size = measure(frame, &self.style.font)?;
             if !self.mapped {
                 self.map(size)?;
             } else if self.size != Some(size) {
-                self.resize(size);
+                self.apply_size(size);
             }
             self.paint(frame, size)?;
-            self.queue.roundtrip(&mut self.state)?;
         }
 
+        self.queue.roundtrip(&mut self.state)?;
         self.shown = frame.clone();
         Ok(())
     }
