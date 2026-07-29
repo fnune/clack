@@ -1,11 +1,14 @@
 //! The file behind both the command line and the tray, so the two cannot
 //! disagree about what Clack is configured to do.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::{env, fs, io};
 
 use serde::{Deserialize, Serialize};
+
+use clack_core::Symbols;
 
 use crate::config::{Anchor, Config, Style};
 
@@ -31,6 +34,10 @@ pub struct Overlay {
     pub timeout_seconds: f32,
     /// An XKB keymap to use instead of the compositor's own.
     pub keymap: Option<PathBuf>,
+    /// Whether keys with no letter of their own are drawn as glyphs.
+    pub symbols: bool,
+    /// Replacements for single keys, by keysym name. An empty string hides one.
+    pub symbol_overrides: HashMap<String, String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
@@ -52,6 +59,8 @@ impl Default for Overlay {
             anchor: style.anchor,
             timeout_seconds: Config::default().timeout.as_secs_f32(),
             keymap: None,
+            symbols: false,
+            symbol_overrides: HashMap::new(),
         }
     }
 }
@@ -68,7 +77,18 @@ impl Overlay {
                 anchor: self.anchor,
             },
             keymap: self.keymap.clone(),
+            symbols: self.to_symbols(),
         }
+    }
+
+    pub fn to_symbols(&self) -> Symbols {
+        let table = if self.symbols {
+            Symbols::glyphs()
+        } else {
+            Symbols::names()
+        };
+
+        table.overridden(&self.symbol_overrides)
     }
 }
 
@@ -169,6 +189,8 @@ mod tests {
                 anchor: Anchor::Top,
                 timeout_seconds: 2.5,
                 keymap: Some(PathBuf::from("/tmp/layout.xkb")),
+                symbols: true,
+                symbol_overrides: HashMap::from([("Tab".to_owned(), "→".to_owned())]),
             },
             tray: Tray {
                 start_hidden: true,

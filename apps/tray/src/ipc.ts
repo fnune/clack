@@ -9,11 +9,29 @@ export type Overlay = {
   anchor: Anchor;
   timeout_seconds: number;
   keymap: string | null;
+  symbols: boolean;
+  symbol_overrides: Record<string, string>;
 };
 
 export type Tray = {
   start_hidden: boolean;
   start_overlay: boolean;
+};
+
+export type PreviewRun = {
+  text: string;
+  kind: "text" | "chord" | "special";
+};
+
+export type SymbolEntry = {
+  keysym: string;
+  label: string;
+  glyph: string;
+};
+
+export type Preview = {
+  runs: PreviewRun[];
+  symbols: SymbolEntry[];
 };
 
 export type Settings = {
@@ -102,11 +120,53 @@ export function parseSettings(value: unknown): Settings {
       anchor: anchor(overlay, "anchor"),
       timeout_seconds: count(overlay, "timeout_seconds"),
       keymap: optionalText(overlay, "keymap"),
+      symbols: flag(overlay, "symbols"),
+      symbol_overrides: table(overlay, "symbol_overrides"),
     },
     tray: {
       start_hidden: flag(tray, "start_hidden"),
       start_overlay: flag(tray, "start_overlay"),
     },
+  };
+}
+
+function table(source: Record<string, unknown>, name: string): Record<string, string> {
+  const value = fields(source[name]);
+  const entries = Object.entries(value);
+
+  if (entries.some(([, glyph]) => typeof glyph !== "string")) {
+    throw new ShapeError(name, value);
+  }
+
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
+export function parsePreview(value: unknown): Preview {
+  const source = fields(value);
+  const runs = source.runs;
+  const symbols = source.symbols;
+
+  if (!Array.isArray(runs) || !Array.isArray(symbols)) {
+    throw new ShapeError("runs or symbols", source);
+  }
+
+  return {
+    runs: runs.map((run) => {
+      const entry = fields(run);
+      const kind = text(entry, "kind");
+      if (kind !== "text" && kind !== "chord" && kind !== "special") {
+        throw new ShapeError("kind", kind);
+      }
+      return { text: text(entry, "text"), kind };
+    }),
+    symbols: symbols.map((symbol) => {
+      const entry = fields(symbol);
+      return {
+        keysym: text(entry, "keysym"),
+        label: text(entry, "label"),
+        glyph: text(entry, "glyph"),
+      };
+    }),
   };
 }
 
@@ -159,6 +219,8 @@ export const api = {
   stop: async (): Promise<Status> => parseStatus(await invoke("stop")),
   status: async (): Promise<Status> => parseStatus(await invoke("status")),
   diagnose: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("diagnose")),
+  preview: async (settings: Settings): Promise<Preview> =>
+    parsePreview(await invoke("preview", { settings })),
   grantAccess: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("grant_access")),
   onStatus: (handle: (status: Status) => void) =>
     listen(STATUS_EVENT, (event) => {

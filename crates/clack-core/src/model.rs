@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 use crate::clock::Timestamp;
 use crate::frame::{Frame, Run, RunKind};
 use crate::key::Translated;
+use crate::symbols::Symbols;
 
 #[derive(Clone, Debug)]
 struct Entry {
@@ -16,22 +17,25 @@ const MAX_RUNS: usize = 48;
 #[derive(Clone, Debug)]
 pub struct Model {
     timeout: Duration,
+    symbols: Symbols,
     entries: VecDeque<Entry>,
 }
 
 impl Model {
-    pub fn new(timeout: Duration) -> Self {
+    pub fn new(timeout: Duration, symbols: Symbols) -> Self {
         Self {
             timeout,
+            symbols,
             entries: VecDeque::new(),
         }
     }
 
     pub fn record(&mut self, translated: &Translated, now: Timestamp) {
-        self.entries.push_back(Entry {
-            run: to_run(translated),
-            at: now,
-        });
+        let Some(run) = to_run(translated, &self.symbols) else {
+            return;
+        };
+
+        self.entries.push_back(Entry { run, at: now });
 
         while self.entries.len() > MAX_RUNS {
             self.entries.pop_front();
@@ -62,23 +66,34 @@ impl Model {
     }
 }
 
-fn to_run(translated: &Translated) -> Run {
+fn to_run(translated: &Translated, symbols: &Symbols) -> Option<Run> {
+    if symbols.hides(&translated.keysym) {
+        return None;
+    }
+
     let printable = translated.text.as_deref().filter(is_printable);
 
-    match (translated.modifiers.is_chord(), printable) {
+    let run = match (translated.modifiers.is_chord(), printable) {
         (true, key) => Run {
             text: chord_label(translated, key),
             kind: RunKind::Chord,
         },
+        // A space types something, but nothing you can see, so a glyph for it
+        // belongs with the text rather than beside it.
         (false, Some(text)) => Run {
-            text: text.to_owned(),
+            text: symbols.glyph(&translated.keysym).unwrap_or(text).to_owned(),
             kind: RunKind::Text,
         },
         (false, None) => Run {
-            text: translated.keysym.clone(),
+            text: symbols
+                .glyph(&translated.keysym)
+                .unwrap_or(&translated.keysym)
+                .to_owned(),
             kind: RunKind::Special,
         },
-    }
+    };
+
+    Some(run)
 }
 
 fn chord_label(translated: &Translated, printable: Option<&str>) -> String {
@@ -96,6 +111,7 @@ fn is_printable(text: &&str) -> bool {
 mod tests {
     use super::*;
     use crate::key::Modifiers;
+    use crate::symbols::SPACE;
 
     fn typed(text: &str, modifiers: Modifiers) -> Translated {
         Translated {
@@ -105,13 +121,17 @@ mod tests {
         }
     }
 
+    fn model(timeout: Duration) -> Model {
+        Model::new(timeout, Symbols::names())
+    }
+
     fn at(millis: u64) -> Timestamp {
         Timestamp::since_start(Duration::from_millis(millis))
     }
 
     #[test]
     fn plain_text_is_shown_as_typed() {
-        let mut model = Model::new(Duration::from_secs(1));
+        let mut model = model(Duration::from_secs(1));
         model.record(&typed("h", Modifiers::default()), at(0));
         model.record(&typed("i", Modifiers::default()), at(10));
 
@@ -124,7 +144,7 @@ mod tests {
             shift: true,
             ..Modifiers::default()
         };
-        let mut model = Model::new(Duration::from_secs(1));
+        let mut model = model(Duration::from_secs(1));
         model.record(&typed("A", shift), at(0));
 
         assert_eq!(
@@ -139,7 +159,7 @@ mod tests {
             ctrl: true,
             ..Modifiers::default()
         };
-        let mut model = Model::new(Duration::from_secs(1));
+        let mut model = model(Duration::from_secs(1));
         model.record(
             &Translated {
                 text: None,
@@ -154,7 +174,7 @@ mod tests {
 
     #[test]
     fn a_key_without_printable_output_falls_back_to_its_keysym() {
-        let mut model = Model::new(Duration::from_secs(1));
+        let mut model = model(Duration::from_secs(1));
         model.record(
             &Translated {
                 text: Some("\r".to_owned()),
@@ -169,7 +189,7 @@ mod tests {
 
     #[test]
     fn the_line_survives_until_the_last_key_goes_stale() {
-        let mut model = Model::new(Duration::from_millis(500));
+        let mut model = model(Duration::from_millis(500));
         model.record(&typed("a", Modifiers::default()), at(0));
         model.record(&typed("b", Modifiers::default()), at(400));
 
@@ -181,8 +201,59 @@ mod tests {
     }
 
     #[test]
+    fn glyphs_replace_the_names_of_keys_that_have_them() {
+        let mut model = Model::new(Duration::from_secs(1), Symbols::glyphs());
+        model.record(
+            &Translated {
+                text: Some("\r".to_owned()),
+                keysym: "Return".to_owned(),
+                modifiers: Modifiers::default(),
+            },
+            at(0),
+        );
+
+        assert_eq!(model.frame().to_plain(), "⏎");
+    }
+
+    #[test]
+    fn a_space_becomes_visible_without_breaking_the_word_it_sits_in() {
+        let mut model = Model::new(Duration::from_secs(1), Symbols::glyphs());
+        for (text, keysym) in [("h", "h"), (" ", SPACE), ("i", "i")] {
+            model.record(
+                &Translated {
+                    text: Some(text.to_owned()),
+                    keysym: keysym.to_owned(),
+                    modifiers: Modifiers::default(),
+                },
+                at(0),
+            );
+        }
+
+        assert_eq!(model.frame().to_plain(), "h␣i");
+    }
+
+    #[test]
+    fn a_key_hidden_by_an_override_is_not_recorded() {
+        let hidden = std::collections::HashMap::from([(SPACE.to_owned(), String::new())]);
+        let mut model = Model::new(
+            Duration::from_secs(1),
+            Symbols::glyphs().overridden(&hidden),
+        );
+        model.record(
+            &Translated {
+                text: Some(" ".to_owned()),
+                keysym: SPACE.to_owned(),
+                modifiers: Modifiers::default(),
+            },
+            at(0),
+        );
+
+        assert!(model.frame().is_empty());
+    }
+
+    #[test]
     fn the_line_stops_growing_at_the_cap() {
-        let mut model = Model::new(Duration::from_secs(60));
+        let mut model = model(Duration::from_secs(60));
         for _ in 0..MAX_RUNS + 10 {
             model.record(&typed("a", Modifiers::default()), at(0));
         }

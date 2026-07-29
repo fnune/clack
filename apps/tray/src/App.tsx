@@ -1,19 +1,51 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Diagnosis, type Overlay, type Settings, type Status, type Tray } from "./ipc";
+import {
+  api,
+  type Diagnosis,
+  type Overlay,
+  type Preview,
+  type Settings,
+  type Status,
+  type Tray,
+} from "./ipc";
 
 const EMPTY_STATUS: Status = { running: false, failure: null };
 
-function describeKeyboards(diagnosis: Diagnosis | null): string {
-  if (diagnosis === null) return "Checking";
-  if (diagnosis.keyboards > 0) return `${diagnosis.keyboards} readable`;
-  if (diagnosis.denied > 0) return `None, ${diagnosis.denied} denied`;
-  return "None found";
+/// Pango describes a font as family, style and size in one string; the preview
+/// only needs the family.
+function pangoFamily(font: string): string {
+  const family = font.replace(/\s+(bold|italic|oblique|light|medium|semi-?bold|\d+)$/gi, "").trim();
+
+  return family === "" ? "sans-serif" : family;
+}
+
+/// The one thing someone opening this window wants to know: is Clack set up,
+/// and is there anything for them to do about it?
+function verdict(diagnosis: Diagnosis | null): { headline: string; ready: boolean } {
+  if (diagnosis === null) return { headline: "Checking", ready: false };
+  if (diagnosis.usable) return { headline: "Ready", ready: true };
+
+  if (diagnosis.keyboards === 0) {
+    return {
+      headline: diagnosis.canGrantAccess
+        ? "Clack needs permission to read your keyboard"
+        : "Clack cannot read any keyboard. Log out and back in, or plug one in.",
+      ready: false,
+    };
+  }
+
+  if (!diagnosis.layerShell) {
+    return { headline: "This desktop cannot show the overlay", ready: false };
+  }
+
+  return { headline: "This desktop did not provide a keymap", ready: false };
 }
 
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [status, setStatus] = useState<Status>(EMPTY_STATUS);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
   const attempt = useCallback(async (action: () => Promise<void>) => {
@@ -36,7 +68,9 @@ export function App() {
         document.documentElement.dataset.theme = appearance.dark ? "dark" : "light";
       }
 
-      setSettings(await api.loadSettings());
+      const loaded = await api.loadSettings();
+      setSettings(loaded);
+      setPreview(await api.preview(loaded));
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
     });
@@ -61,7 +95,10 @@ export function App() {
 
   const save = (next: Settings) => {
     setSettings(next);
-    void attempt(() => api.saveSettings(next));
+    void attempt(async () => {
+      await api.saveSettings(next);
+      setPreview(await api.preview(next));
+    });
   };
 
   const editOverlay = (change: Partial<Overlay>) =>
@@ -94,54 +131,43 @@ export function App() {
       </div>
 
       <section>
-        <h2>Access</h2>
+        <h2>Status</h2>
         <div className="list">
-          <div className="row">
-            <span>Keyboards</span>
-            <span className="value reading">{describeKeyboards(diagnosis)}</span>
-          </div>
-          <div className="row">
-            <span>Overlay</span>
-            <span className="value reading">
-              {diagnosis === null
-                ? "Checking"
-                : diagnosis.layerShell
-                  ? "Layer shell"
-                  : "Not supported here"}
+          <div className={verdict(diagnosis).ready ? "row verdict ready" : "row verdict"}>
+            <span className="headline">
+              <span className="mark" aria-hidden="true" />
+              {verdict(diagnosis).headline}
             </span>
-          </div>
-          <div className="row">
-            <span>Keymap</span>
-            <span className="value reading">
-              {diagnosis === null
-                ? "Checking"
-                : diagnosis.keymap
-                  ? "From the compositor"
-                  : "Unavailable"}
-            </span>
-          </div>
-        </div>
-
-        {diagnosis?.canGrantAccess === true && (
-          <>
-            <p className="status">
-              Clack reads keyboards from <code>/dev/input</code>, which needs permission. This
-              installs <code>{diagnosis.rulePath}</code>, granting read access to whoever is logged
-              in on the active seat, revoked at logout. You will be asked for your password once.
-            </p>
             <button
-              className="quiet"
+              className="linkish"
               type="button"
+              disabled={diagnosis?.canGrantAccess !== true}
+              title={diagnosis?.rulePath}
               onClick={() =>
                 void attempt(async () => {
                   setDiagnosis(await api.grantAccess());
                 })
               }
             >
-              Grant access
+              {diagnosis?.canGrantAccess === true
+                ? "Allow keyboard access"
+                : "Keyboard access allowed"}
             </button>
-          </>
-        )}
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Preview</h2>
+        <div className="preview">
+          <span className="pill" style={{ fontFamily: pangoFamily(settings.overlay.font) }}>
+            {preview?.runs.map((run, index) => (
+              <span className={run.kind} key={`${run.kind}-${index}-${run.text}`}>
+                {run.text}
+              </span>
+            ))}
+          </span>
+        </div>
       </section>
 
       <section>
@@ -211,6 +237,44 @@ export function App() {
               </span>
             </span>
           </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Symbols</h2>
+        <div className="list">
+          <label className="row">
+            <span>Draw keys as symbols</span>
+            <span className="value">
+              <span className="toggle">
+                <input
+                  type="checkbox"
+                  checked={settings.overlay.symbols}
+                  onChange={(event) => editOverlay({ symbols: event.target.checked })}
+                />
+              </span>
+            </span>
+          </label>
+
+          {preview?.symbols.map((symbol) => (
+            <label className="row" key={symbol.keysym}>
+              <span>{symbol.label}</span>
+              <span className="value symbol">
+                <input
+                  type="text"
+                  value={settings.overlay.symbol_overrides[symbol.keysym] ?? symbol.glyph}
+                  onChange={(event) =>
+                    editOverlay({
+                      symbol_overrides: {
+                        ...settings.overlay.symbol_overrides,
+                        [symbol.keysym]: event.target.value,
+                      },
+                    })
+                  }
+                />
+              </span>
+            </label>
+          ))}
         </div>
       </section>
 

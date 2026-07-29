@@ -34,7 +34,10 @@ pub mod text;
 pub mod wayland;
 
 pub use access::{AccessError, RuleStatus};
-pub use clack_core::{Frame, Run, RunKind, Surface};
+pub use clack_core::Model;
+pub use clack_core::{
+    Frame, Modifiers, Run, RunKind, SPACE, Surface, Symbols, Timestamp, Translated,
+};
 pub use config::{Anchor, Config, Style};
 pub use diagnostics::{CompositorReport, KeymapSource, Report};
 pub use session::{Handle, LiveSession, Session, SessionError, State};

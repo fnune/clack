@@ -15,7 +15,7 @@
         "label": "main",
         "title": "Clack",
         "width": 450,
-        "height": 590,
+        "height": 660,
         "resizable": true,
         "visible": false
       }

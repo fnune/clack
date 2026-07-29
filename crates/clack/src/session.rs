@@ -135,6 +135,7 @@ impl<K: KeySource, T: Translator, S: Surface> Session<K, T, S> {
                 surface,
                 MonotonicClock::started(),
                 config.timeout,
+                config.symbols.clone(),
             ),
             handle: Handle::default(),
         }

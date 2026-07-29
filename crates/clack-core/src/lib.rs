@@ -17,6 +17,7 @@ mod key;
 mod model;
 mod pipeline;
 mod ports;
+mod symbols;
 
 pub use clock::{Clock, Timestamp};
 pub use frame::{Frame, Run, RunKind};
@@ -24,3 +25,4 @@ pub use key::{EvdevCode, KeyEvent, KeyState, Modifiers, Translated, XkbKeycode};
 pub use model::Model;
 pub use pipeline::{Pipeline, PipelineError};
 pub use ports::{KeySource, Surface, Translator};
+pub use symbols::{SPACE, Symbols};

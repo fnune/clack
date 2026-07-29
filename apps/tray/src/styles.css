@@ -177,6 +177,106 @@ main {
   transform: translateX(20px);
 }
 
+/* The overlay, as it will actually look. */
+
+.preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--ink) 5%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+}
+
+.pill {
+  display: inline-flex;
+  gap: 0.35em;
+  max-width: 100%;
+  padding: 7px 13px;
+  border-radius: 8px;
+  background: #0f1115d1;
+  color: #f5f5f5;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pill .text + .text {
+  margin-left: -0.35em;
+}
+
+.pill .special {
+  color: #a1a1aa;
+}
+
+.pill .chord {
+  color: #7dd3fc;
+}
+
+/* A switch small enough to sit in a settings row. It does not reuse the
+   checkbox styling, which centres its mark with a grid the knob cannot use. */
+
+.toggle {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+.toggle input[type="checkbox"] {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  border: 1px solid var(--off);
+  border-radius: 10px;
+  background: var(--off);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+/* Centred by transform rather than by arithmetic, and the individual rotate
+   and translate properties are cleared: the checkbox rule sets translate to
+   nudge its tick, and that is not undone by setting transform here. */
+.toggle input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  opacity: 1;
+  rotate: none;
+  scale: none;
+  translate: none;
+  transform: translateY(-50%);
+  transition: transform 180ms cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+
+.toggle input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.toggle input[type="checkbox"]:checked::after {
+  transform: translate(16px, -50%);
+}
+
 /* Settings read as a list of facts until you touch one. */
 
 section {
@@ -231,6 +331,108 @@ h2 {
   display: block;
   width: 100%;
   color: var(--ink-quiet);
+}
+
+/* The verdict leads the list: the answer first, the readings that justify it
+   underneath. */
+.verdict {
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  padding: 9px 12px;
+  color: var(--warn);
+}
+
+.verdict .headline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.linkish {
+  justify-self: end;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.linkish:disabled {
+  color: var(--ink-quiet);
+  cursor: default;
+  text-decoration: none;
+}
+
+.verdict.ready {
+  color: var(--ink);
+}
+
+.verdict .mark {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.verdict.ready .mark {
+  background: var(--accent);
+}
+
+/* A rotated corner reads as a tick, and rotation pushes it low, so it is
+   nudged back up rather than left where the maths puts it. */
+.verdict .mark::after {
+  content: "";
+  width: 4px;
+  height: 8px;
+  margin-top: -2px;
+  border: solid var(--knob);
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+}
+
+.verdict:not(.ready) .mark::after {
+  width: 2px;
+  height: 9px;
+  margin: 0;
+  border: 0;
+  border-radius: 1px;
+  background: var(--knob);
+  rotate: none;
+  box-shadow: none;
+}
+
+/* One glyph, so the box is sized to a glyph and always visible: there is
+   nothing here to mistake for static text. */
+.symbol {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 6px;
+}
+
+/* Typed rather than bare, so this outweighs the generic input rule below it:
+   `.symbol input` and `input[type="text"]` carry the same specificity, and the
+   later one would win. */
+.symbol input[type="text"] {
+  width: 4ch;
+  padding: 2px 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--page);
+  color: var(--ink);
+  font-family: ui-monospace, "DejaVu Sans Mono", "Liberation Mono", monospace;
+  font-size: 17px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.symbol input[type="text"]:focus {
+  border-color: var(--accent);
 }
 
 /* A value that is reported rather than edited. */
@@ -423,8 +625,14 @@ button:focus-visible {
   cursor: pointer;
 }
 
-.quiet:hover {
+.quiet:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.quiet:disabled {
+  color: var(--ink-quiet);
+  cursor: default;
+  opacity: 0.55;
 }
 
 .status,

@@ -59,6 +59,7 @@ pub fn run() {
             diagnose,
             grant_access,
             desktop_appearance,
+            preview,
         ])
         .setup(|app| {
             let settings = Settings::load().unwrap_or_else(|error| {
@@ -215,6 +216,115 @@ fn publish(app: &AppHandle) {
     }
 
     let _ = app.emit(STATUS_EVENT, status);
+}
+
+/// Keys worth offering a replacement for. Everything else is reachable from the
+/// config file.
+const EDITABLE: [(&str, &str); 4] = [
+    (clack::SPACE, "Space"),
+    ("Return", "Return"),
+    ("Tab", "Tab"),
+    ("BackSpace", "Backspace"),
+];
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Preview {
+    pub runs: Vec<PreviewRun>,
+    pub symbols: Vec<SymbolEntry>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewRun {
+    pub text: String,
+    pub kind: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SymbolEntry {
+    pub keysym: String,
+    pub label: String,
+    pub glyph: String,
+}
+
+/// Runs a sample through the same model the overlay uses, so the window cannot
+/// disagree with the thing it is previewing.
+#[tauri::command]
+fn preview(settings: Settings) -> Preview {
+    let symbols = settings.overlay.to_symbols();
+    let mut model = clack::Model::new(std::time::Duration::from_secs(60), symbols.clone());
+
+    for character in "hello world".chars() {
+        let keysym = if character == ' ' {
+            clack::SPACE.to_owned()
+        } else {
+            character.to_string()
+        };
+        model.record(
+            &clack::Translated {
+                text: Some(character.to_string()),
+                keysym,
+                modifiers: clack::Modifiers::default(),
+            },
+            clack::Timestamp::ZERO,
+        );
+    }
+
+    for (keysym, text) in [("Return", Some("\r")), ("Tab", Some("\t"))] {
+        model.record(
+            &clack::Translated {
+                text: text.map(str::to_owned),
+                keysym: keysym.to_owned(),
+                modifiers: clack::Modifiers::default(),
+            },
+            clack::Timestamp::ZERO,
+        );
+    }
+
+    model.record(
+        &clack::Translated {
+            text: None,
+            keysym: "s".to_owned(),
+            modifiers: clack::Modifiers {
+                ctrl: true,
+                ..clack::Modifiers::default()
+            },
+        },
+        clack::Timestamp::ZERO,
+    );
+
+    Preview {
+        runs: model
+            .frame()
+            .runs
+            .into_iter()
+            .map(|run| PreviewRun {
+                text: run.text,
+                kind: match run.kind {
+                    clack::RunKind::Text => "text",
+                    clack::RunKind::Chord => "chord",
+                    clack::RunKind::Special => "special",
+                }
+                .to_owned(),
+            })
+            .collect(),
+        // The table says what the symbols are; the switch says whether they are
+        // used. Showing names here conflated the two.
+        symbols: {
+            let table = clack::Symbols::glyphs().overridden(&settings.overlay.symbol_overrides);
+
+            EDITABLE
+                .into_iter()
+                .map(|(keysym, label)| SymbolEntry {
+                    keysym: keysym.to_owned(),
+                    label: label.to_owned(),
+                    glyph: table.glyph(keysym).unwrap_or_default().to_owned(),
+                })
+                .collect()
+        },
+    }
 }
 
 #[tauri::command]

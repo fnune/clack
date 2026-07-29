@@ -5,6 +5,7 @@ use crate::clock::Clock;
 use crate::frame::Frame;
 use crate::model::Model;
 use crate::ports::{KeySource, Surface, Translator};
+use crate::symbols::Symbols;
 
 #[derive(Debug)]
 pub struct Pipeline<S, T, U, C> {
@@ -22,13 +23,20 @@ where
     U: Surface,
     C: Clock,
 {
-    pub fn new(source: S, translator: T, surface: U, clock: C, timeout: Duration) -> Self {
+    pub fn new(
+        source: S,
+        translator: T,
+        surface: U,
+        clock: C,
+        timeout: Duration,
+        symbols: Symbols,
+    ) -> Self {
         Self {
             source,
             translator,
             surface,
             clock,
-            model: Model::new(timeout),
+            model: Model::new(timeout, symbols),
         }
     }
 
@@ -171,6 +179,7 @@ mod tests {
             RecordingSurface(Rc::clone(&frames)),
             ManualClock(Rc::clone(&now)),
             Duration::from_secs(1),
+            Symbols::names(),
         );
 
         pipeline.step().unwrap();
@@ -192,6 +201,7 @@ mod tests {
             RecordingSurface(Rc::clone(&frames)),
             ManualClock(Rc::clone(&now)),
             Duration::from_millis(500),
+            Symbols::names(),
         );
 
         pipeline.step().unwrap();
