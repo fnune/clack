@@ -81,7 +81,11 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if matches!(event, WindowEvent::CloseRequested { .. }) {
+            // Closing the window leaves Clack in the tray. Without preventing
+            // the close the window is destroyed, and with it the last window,
+            // which ends the process.
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
                 let _ = window.hide();
             }
         })
