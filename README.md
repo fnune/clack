@@ -1,4 +1,7 @@
-<img src="assets/icon.png" alt="" align="right" width="104">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/icon-on-dark.png">
+  <img src="assets/icon.png" alt="" width="72">
+</picture>
 
 # Clack
 
