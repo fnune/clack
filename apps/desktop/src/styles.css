@@ -14,8 +14,10 @@
   --warn: #8a5a00;
   --warn-ink: #ffffff;
   --error: #b4451f;
-  /* Named because the content has to be pushed off the left edge by exactly what
-     the scrollbar takes from the right one. */
+  /* How far the content sits from the window's edges, and what the scrollbar takes
+     from the right one. The two are named so that each side can be made to add up
+     to the same inset rather than guessed at. */
+  --inset: 16px;
   --scrollbar: 11px;
 
   color-scheme: light dark;
@@ -199,13 +201,13 @@ main {
      whether or not there is anything to scroll, so nothing shifts sideways when
      the content grows past the window. */
   scrollbar-gutter: stable;
-  padding: 6px 16px 16px calc(16px + var(--scrollbar));
+  padding: 6px calc(var(--inset) - var(--scrollbar)) var(--inset) var(--inset);
 }
 
 /* The strip supplies the air above the content, so without one the content has to
    supply its own and sit an even distance from every edge. */
 :root[data-decorated="true"] main {
-  padding-top: 16px;
+  padding-top: var(--inset);
 }
 
 /* The cap is on the content, not on the thing that scrolls: capping the scroller
@@ -940,9 +942,9 @@ button:focus-visible {
    scrolls and an alert that scrolls away is not an alert. */
 .notes {
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  left: 16px;
+  right: var(--inset);
+  bottom: var(--inset);
+  left: var(--inset);
   z-index: 10;
   display: flex;
   flex-direction: column;
