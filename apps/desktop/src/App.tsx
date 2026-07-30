@@ -300,7 +300,6 @@ export function App() {
                   min={0}
                   max={4000}
                   value={settings.overlay.margin}
-                  style={{ width: `${String(settings.overlay.margin).length}ch` }}
                   onChange={(event) => editOverlay({ margin: Number(event.target.value) })}
                 />
                 <span className="suffix">px</span>
@@ -318,7 +317,6 @@ export function App() {
                   max={30}
                   step={0.1}
                   value={settings.overlay.timeout_seconds}
-                  style={{ width: `${String(settings.overlay.timeout_seconds).length}ch` }}
                   onChange={(event) => editOverlay({ timeout_seconds: Number(event.target.value) })}
                 />
                 <span className="suffix">s</span>

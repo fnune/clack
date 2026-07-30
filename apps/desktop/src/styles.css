@@ -583,6 +583,8 @@ h2 {
 
 .field:focus-within {
   border-color: var(--accent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: -1px;
 }
 
 input[type="text"],
@@ -602,14 +604,24 @@ select {
     background 140ms ease;
 }
 
+/* The input fills the box rather than hugging its digits, so clicking anywhere in
+   the box lands on the input itself. `text-align: right` keeps the number against
+   the unit, which is what the hugging was for. */
 input[type="number"] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
   padding: 0;
   border: 0;
   appearance: textfield;
 }
 
-input[type="number"]:focus {
+/* The box is what looks like an input, so the box takes the ring. On the input the
+   ring outlined the digits. */
+input[type="number"]:focus,
+input[type="number"]:focus-visible {
   background: none;
+  outline: none;
 }
 
 input[type="number"]::-webkit-inner-spin-button,
