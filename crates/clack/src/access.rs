@@ -1,4 +1,4 @@
-//! Granting Clack permission to read keyboards.
+//! Granting Clack permission to read keyboards, and taking it back.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -7,9 +7,6 @@ use std::{env, fs, io};
 const RULE: &str = include_str!("../../../packaging/65-clack.rules");
 const RULE_PATH: &str = "/etc/udev/rules.d/65-clack.rules";
 
-/// The flag Clack passes to itself once polkit has raised it to root.
-pub const PRIVILEGED_FLAG: &str = "--write-udev-rule";
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RuleStatus {
     Installed,
@@ -17,17 +14,36 @@ pub enum RuleStatus {
     Missing,
 }
 
+/// What a privileged run of Clack is being asked to do to the rule. Both
+/// directions go through the same elevation, so revoking access is as ordinary
+/// an act as granting it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Change {
+    Allow,
+    Revoke,
+}
+
+impl Change {
+    /// The flag Clack passes to itself once polkit has raised it to root.
+    pub fn flag(self) -> &'static str {
+        match self {
+            Self::Allow => "--write-udev-rule",
+            Self::Revoke => "--remove-udev-rule",
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AccessError {
     #[error("this needs to run as root; it is meant to be reached through `clack --grant-access`")]
     NotRoot,
-    #[error("writing {RULE_PATH} failed: {0}")]
+    #[error("changing {RULE_PATH} failed: {0}")]
     Writing(#[source] io::Error),
-    #[error("pkexec is not installed, so the rule cannot be installed for you")]
+    #[error("pkexec is not installed, so the rule cannot be changed for you")]
     NoPkexec,
     #[error("running pkexec failed: {0}")]
     Pkexec(#[source] io::Error),
-    #[error("the request to install the rule was declined")]
+    #[error("the request was declined")]
     Declined,
     #[error("finding this executable failed: {0}")]
     Unlocatable(#[source] io::Error),
@@ -51,20 +67,28 @@ pub fn status() -> RuleStatus {
     }
 }
 
-/// Asks polkit to install the rule, which prompts the user once. Their desktop
+pub fn install() -> Result<(), AccessError> {
+    elevate(Change::Allow)
+}
+
+pub fn remove() -> Result<(), AccessError> {
+    elevate(Change::Revoke)
+}
+
+/// Asks polkit to make the change, which prompts the user once. Their desktop
 /// shows which program is asking and what it wants, and nothing stays elevated
 /// afterwards.
-pub fn install() -> Result<(), AccessError> {
+pub fn elevate(change: Change) -> Result<(), AccessError> {
     if which("pkexec").is_none() {
         return Err(AccessError::NoPkexec);
     }
 
     let mut command = Command::new("pkexec");
     if env::var_os("APPIMAGE").is_some() {
-        command.arg("sh").arg("-c").arg(script());
+        command.arg("sh").arg("-c").arg(script(change));
     } else {
         let executable = env::current_exe().map_err(AccessError::Unlocatable)?;
-        command.arg(executable).arg(PRIVILEGED_FLAG);
+        command.arg(executable).arg(change.flag());
     }
 
     let outcome = command.status().map_err(AccessError::Pkexec)?;
@@ -80,38 +104,59 @@ pub fn install() -> Result<(), AccessError> {
 /// read, so root cannot re-execute Clack from there and has to be given the
 /// work directly. Both the rule and its path are compile-time constants, so
 /// there is no input for a caller to influence.
-fn script() -> String {
+fn script(change: Change) -> String {
+    let act = match change {
+        Change::Allow => format!(
+            "mkdir -p \"$(dirname '{RULE_PATH}')\"\n\
+             cat > '{RULE_PATH}' <<'CLACK_RULE'\n\
+             {rule}\n\
+             CLACK_RULE\n",
+            rule = RULE.trim_end()
+        ),
+        Change::Revoke => format!("rm -f '{RULE_PATH}'\n"),
+    };
+
     format!(
         "set -e\n\
-         mkdir -p \"$(dirname '{RULE_PATH}')\"\n\
-         cat > '{RULE_PATH}' <<'CLACK_RULE'\n\
-         {rule}\n\
-         CLACK_RULE\n\
+         {act}\
          udevadm control --reload\n\
-         udevadm trigger --subsystem-match=input\n",
-        rule = RULE.trim_end()
+         udevadm trigger --subsystem-match=input\n"
     )
 }
 
-/// Runs as root, having been re-entered through polkit. Writes one fixed file
-/// with fixed contents and reloads udev. It takes no input, so there is nothing
-/// for a caller to influence.
-pub fn write_rule_as_root() -> Result<(), AccessError> {
+/// Runs as root, having been re-entered through polkit. Writes or deletes one
+/// fixed file and reloads udev. It takes no input beyond which of the two, so
+/// there is nothing for a caller to influence.
+pub fn apply_as_root(change: Change) -> Result<(), AccessError> {
     let path = Path::new(RULE_PATH);
-    if let Some(directory) = path.parent() {
-        fs::create_dir_all(directory).map_err(AccessError::Writing)?;
-    }
 
-    fs::write(path, RULE).map_err(|error| {
-        if error.kind() == io::ErrorKind::PermissionDenied {
-            AccessError::NotRoot
-        } else {
-            AccessError::Writing(error)
+    match change {
+        Change::Allow => {
+            if let Some(directory) = path.parent() {
+                fs::create_dir_all(directory).map_err(AccessError::Writing)?;
+            }
+
+            fs::write(path, RULE).map_err(as_access_error)?;
         }
-    })?;
+        // Already gone is the outcome the caller wanted, not a failure.
+        Change::Revoke => match fs::remove_file(path) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                return Err(as_access_error(error));
+            }
+            _ => {}
+        },
+    }
 
     udevadm(&["control", "--reload"])?;
     udevadm(&["trigger", "--subsystem-match=input"])
+}
+
+fn as_access_error(error: io::Error) -> AccessError {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        AccessError::NotRoot
+    } else {
+        AccessError::Writing(error)
+    }
 }
 
 fn udevadm(arguments: &[&str]) -> Result<(), AccessError> {
@@ -154,11 +199,28 @@ mod tests {
 
     #[test]
     fn the_script_writes_the_same_rule_the_binary_would() {
-        let script = script();
+        let script = script(Change::Allow);
 
         assert!(script.contains(RULE_PATH));
         assert!(script.contains(RULE.trim_end()));
         assert!(script.contains("udevadm control --reload"));
+    }
+
+    #[test]
+    fn revoking_removes_the_rule_rather_than_rewriting_it() {
+        let script = script(Change::Revoke);
+
+        assert!(script.contains(&format!("rm -f '{RULE_PATH}'")));
+        assert!(
+            !script.contains("uaccess"),
+            "it should write no rule at all"
+        );
+        assert!(script.contains("udevadm control --reload"));
+    }
+
+    #[test]
+    fn the_two_directions_do_not_share_a_flag() {
+        assert_ne!(Change::Allow.flag(), Change::Revoke.flag());
     }
 
     #[test]

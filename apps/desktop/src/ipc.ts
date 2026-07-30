@@ -51,7 +51,7 @@ export type Diagnosis = {
   keymap: boolean;
   usable: boolean;
   summary: string;
-  canGrantAccess: boolean;
+  ruleInstalled: boolean;
   rulePath: string;
   ruleText: string;
 };
@@ -187,7 +187,7 @@ export function parseDiagnosis(value: unknown): Diagnosis {
     keymap: flag(source, "keymap"),
     usable: flag(source, "usable"),
     summary: text(source, "summary"),
-    canGrantAccess: flag(source, "canGrantAccess"),
+    ruleInstalled: flag(source, "ruleInstalled"),
     rulePath: text(source, "rulePath"),
     ruleText: text(source, "ruleText"),
   };
@@ -228,6 +228,7 @@ export const api = {
   preview: async (settings: Settings): Promise<Preview> =>
     parsePreview(await invoke("preview", { settings })),
   grantAccess: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("grant_access")),
+  revokeAccess: async (): Promise<Diagnosis> => parseDiagnosis(await invoke("revoke_access")),
   onStatus: (handle: (status: Status) => void) =>
     listen(STATUS_EVENT, (event) => {
       handle(parseStatus(event.payload));

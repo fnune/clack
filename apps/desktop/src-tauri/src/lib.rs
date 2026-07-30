@@ -40,9 +40,9 @@ pub struct Diagnosis {
     pub keymap: bool,
     pub usable: bool,
     pub summary: String,
-    /// Whether installing the udev rule would help. The window offers to do it
-    /// only when it would.
-    pub can_grant_access: bool,
+    /// Whether the udev rule is in place. The window offers whichever direction
+    /// is left, rather than hiding the one that is done.
+    pub rule_installed: bool,
     pub rule_path: String,
     pub rule_text: String,
 }
@@ -60,6 +60,7 @@ pub fn run() {
             status,
             diagnose,
             grant_access,
+            revoke_access,
             desktop_appearance,
             preview,
         ])
@@ -391,8 +392,7 @@ fn diagnose() -> Result<Diagnosis, String> {
         keymap: report.can_translate(),
         usable: report.is_usable(),
         summary: summarise(&report),
-        can_grant_access: report.keyboards() == 0
-            && clack::access::status() != clack::RuleStatus::Installed,
+        rule_installed: clack::access::status() == clack::RuleStatus::Installed,
         rule_path: clack::access::rule_path().display().to_string(),
         rule_text: clack::access::rule_text().to_owned(),
     })
@@ -403,6 +403,15 @@ fn diagnose() -> Result<Diagnosis, String> {
 #[tauri::command]
 fn grant_access() -> Result<Diagnosis, String> {
     clack::access::install().map_err(|error| error.to_string())?;
+
+    diagnose()
+}
+
+/// Deletes it again, the same way. Devices already open stay readable until the
+/// user logs out, which is the ACL's doing rather than Clack's.
+#[tauri::command]
+fn revoke_access() -> Result<Diagnosis, String> {
+    clack::access::remove().map_err(|error| error.to_string())?;
 
     diagnose()
 }

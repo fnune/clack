@@ -28,6 +28,10 @@ struct Cli {
     #[arg(long)]
     grant_access: bool,
 
+    /// Take that permission away again, leaving nothing of Clack's behind
+    #[arg(long)]
+    revoke_access: bool,
+
     /// Font, in Pango notation
     #[arg(long, value_name = "FONT")]
     font: Option<String>,
@@ -64,6 +68,10 @@ struct Cli {
     #[arg(long)]
     config_path: bool,
 
+    /// Put every setting back to its default, keeping a copy of the old file
+    #[arg(long)]
+    reset: bool,
+
     /// Use this XKB keymap, for a compositor that will not share the one it uses
     #[arg(long, value_name = "PATH")]
     keymap: Option<PathBuf>,
@@ -75,6 +83,10 @@ struct Cli {
     /// Write the udev rule. Clack passes this to itself once polkit has raised it to root
     #[arg(long, hide = true)]
     write_udev_rule: bool,
+
+    /// Delete the udev rule, likewise
+    #[arg(long, hide = true)]
+    remove_udev_rule: bool,
 }
 
 impl Cli {
@@ -118,10 +130,16 @@ fn main() -> ExitCode {
 
     let outcome = if cli.config_path {
         show_config_path()
+    } else if cli.reset {
+        reset()
     } else if cli.write_udev_rule {
-        access::write_rule_as_root().map_err(anyhow::Error::from)
+        access::apply_as_root(access::Change::Allow).map_err(anyhow::Error::from)
+    } else if cli.remove_udev_rule {
+        access::apply_as_root(access::Change::Revoke).map_err(anyhow::Error::from)
     } else if cli.grant_access {
         grant_access()
+    } else if cli.revoke_access {
+        revoke_access()
     } else if cli.check {
         check()
     } else if cli.print {
@@ -141,6 +159,22 @@ fn main() -> ExitCode {
 
 fn show_config_path() -> anyhow::Result<()> {
     println!("{}", clack::settings::path()?.display());
+    Ok(())
+}
+
+fn reset() -> anyhow::Result<()> {
+    let existed = clack::settings::path()?.exists();
+    Settings::reset()?;
+
+    if existed {
+        println!(
+            "Reset. Your previous settings are in {}.",
+            clack::settings::backup_path()?.display()
+        );
+    } else {
+        println!("Reset. There were no settings to keep.");
+    }
+
     Ok(())
 }
 
@@ -192,6 +226,26 @@ fn grant_access() -> anyhow::Result<()> {
 
     access::install()?;
     println!("Done. Run clack --check to confirm.");
+
+    Ok(())
+}
+
+fn revoke_access() -> anyhow::Result<()> {
+    if access::status() == RuleStatus::Missing {
+        println!("Clack has no keyboard permission to take away.");
+        return Ok(());
+    }
+
+    println!(
+        "Clack will ask for administrator access to delete {}.",
+        access::rule_path().display()
+    );
+    println!("Afterwards it can no longer read your keyboard, and nothing of Clack's is left");
+    println!("on the system outside your home directory.");
+    println!();
+
+    access::remove()?;
+    println!("Done. Devices already open stay readable until you log out.");
 
     Ok(())
 }

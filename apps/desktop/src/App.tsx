@@ -22,10 +22,12 @@ function PowerRing() {
   );
 }
 
-/// The confirmation names the file, not the path it sits in, which is the same
-/// directory the settings already came from.
-function basename(path: string | null): string {
-  return path === null ? "a backup" : (path.split("/").pop() ?? path);
+/// The path goes last so that the ellipsis eats it rather than the question, and
+/// the title carries what the line could not fit.
+function askedInFull(backup: string | null): string {
+  return backup === null
+    ? "Reset everything? A copy of your current settings is kept."
+    : `Reset everything? A copy of your current settings is kept at ${backup}`;
 }
 
 /// Pango describes a font as family, style and size in one string; the preview
@@ -44,9 +46,9 @@ function verdict(diagnosis: Diagnosis | null): { headline: string; ready: boolea
 
   if (diagnosis.keyboards === 0) {
     return {
-      headline: diagnosis.canGrantAccess
-        ? "Clack needs permission to read your keyboard"
-        : "Clack cannot read any keyboard. Log out and back in, or plug one in.",
+      headline: diagnosis.ruleInstalled
+        ? "Clack cannot read any keyboard. Log out and back in, or plug one in."
+        : "Clack needs permission to read your keyboard",
       ready: false,
     };
   }
@@ -161,7 +163,7 @@ export function App() {
             <button
               className="linkish"
               type="button"
-              disabled={diagnosis?.canGrantAccess !== true}
+              disabled={diagnosis?.ruleInstalled !== false}
               title={diagnosis?.rulePath}
               onClick={() =>
                 void attempt(async () => {
@@ -169,7 +171,7 @@ export function App() {
                 })
               }
             >
-              {diagnosis?.canGrantAccess === true
+              {diagnosis?.ruleInstalled === false
                 ? "Allow keyboard access"
                 : "Keyboard access allowed"}
             </button>
@@ -325,37 +327,46 @@ export function App() {
       <footer>
         {confirmingReset ? (
           <div className="confirm">
-            <p>
-              Reset every setting? Your current settings are copied to{" "}
-              <span className="filename" title={backup ?? undefined}>
-                {basename(backup)}
-              </span>{" "}
-              first.
+            <p className="ask" title={askedInFull(backup)}>
+              Reset everything? A copy is kept at {backup ?? "a backup file"}
             </p>
-            <div className="choices">
-              <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
-                Keep them
-              </button>
-              <button
-                className="linkish destructive"
-                type="button"
-                onClick={() =>
-                  void attempt(async () => {
-                    const defaults = await api.resetSettings();
-                    setConfirmingReset(false);
-                    setSettings(defaults);
-                    setPreview(await api.preview(defaults));
-                  })
-                }
-              >
-                Reset
-              </button>
-            </div>
+            <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
+              Cancel
+            </button>
+            <button
+              className="linkish destructive"
+              type="button"
+              onClick={() =>
+                void attempt(async () => {
+                  const defaults = await api.resetSettings();
+                  setConfirmingReset(false);
+                  setSettings(defaults);
+                  setPreview(await api.preview(defaults));
+                })
+              }
+            >
+              Reset
+            </button>
           </div>
         ) : (
-          <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
-            Reset to defaults
-          </button>
+          <>
+            <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
+              Reset to defaults
+            </button>
+            <button
+              className="linkish"
+              type="button"
+              disabled={diagnosis?.ruleInstalled !== true}
+              title={diagnosis?.rulePath}
+              onClick={() =>
+                void attempt(async () => {
+                  setDiagnosis(await api.revokeAccess());
+                })
+              }
+            >
+              Remove keyboard access
+            </button>
+          </>
         )}
       </footer>
     </main>

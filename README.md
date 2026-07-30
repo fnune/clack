@@ -60,6 +60,10 @@ The desktop app has a button for the same thing. Either way you are asked for yo
 nothing stays elevated, and later launches ask for nothing. `clack --check` says whether it
 worked.
 
+`clack --revoke-access` takes it back, and the app offers that too. Afterwards nothing of Clack's
+is left outside your home directory. Devices already open stay readable until you log out, which
+is how the ACL works rather than anything Clack decides.
+
 ## Use
 
 ```sh
@@ -69,6 +73,7 @@ clack --anchor top --margin 140 --timeout 3             # where it sits, and for
 clack --font "JetBrains Mono Bold 28"                   # any font Pango can name
 clack --symbols                                        # space and enter get glyphs, not names
 clack --print                                          # keystrokes on stdout, to pipe anywhere
+clack --reset                                          # settings back to defaults, keeping a copy
 ```
 
 `--help` lists the rest. Your layout comes from your desktop, so what you configured there is
