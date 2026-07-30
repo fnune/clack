@@ -200,46 +200,23 @@ export function App() {
               <span className="mark" aria-hidden="true" />
               <span className="said">{said.headline}</span>
             </span>
-          </div>
-
-          <div className="row">
-            <span>Keyboard access</span>
-            <span className="value access">
-              {diagnosis?.ruleInstalled === true ? (
-                <>
-                  Allowed
-                  <button
-                    className="linkish"
-                    type="button"
-                    title={diagnosis.rulePath}
-                    onClick={() =>
-                      void attempt(async () => {
-                        setDiagnosis(await api.revokeAccess());
-                      })
-                    }
-                  >
-                    Revoke
-                  </button>
-                </>
-              ) : (
-                <>
-                  Not allowed
-                  <button
-                    className="linkish"
-                    type="button"
-                    disabled={diagnosis === null}
-                    title={diagnosis?.rulePath}
-                    onClick={() =>
-                      void attempt(async () => {
-                        setDiagnosis(await api.grantAccess());
-                      })
-                    }
-                  >
-                    Allow
-                  </button>
-                </>
-              )}
-            </span>
+            <button
+              className="linkish"
+              type="button"
+              disabled={diagnosis === null}
+              title={diagnosis?.rulePath}
+              onClick={() =>
+                void attempt(async () => {
+                  setDiagnosis(
+                    diagnosis?.ruleInstalled === true
+                      ? await api.revokeAccess()
+                      : await api.grantAccess(),
+                  );
+                })
+              }
+            >
+              {diagnosis?.ruleInstalled === true ? "Revoke" : "Allow"}
+            </button>
           </div>
         </div>
       </section>

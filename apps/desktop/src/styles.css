@@ -340,15 +340,6 @@ footer {
 }
 
 /* The state is reported; only the way out of it is a link. */
-.access {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 12px;
-  color: var(--ink-quiet);
-  white-space: nowrap;
-}
-
 /* One line, in the place the button that raised it was, so asking moves nothing:
    a taller footer pushed itself below the fold, which is where the answer was. */
 .confirm {
@@ -424,11 +415,12 @@ h2 {
 
 /* The verdict leads the list: the answer first, the readings that justify it
    underneath. */
-/* The verdict is a sentence of unbounded length, so it gets the row to itself.
-   Sharing one with the access control meant two variable widths competing, and
-   whichever lost was crushed into a column three words wide. */
+/* The verdict says the state and the link is the one way to change it, so a
+   second row naming the same thing was filler. The verdict takes what is left and
+   truncates; one word of action never has to. */
 .verdict {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
   padding: 9px 12px;
   color: var(--warn);
 }
