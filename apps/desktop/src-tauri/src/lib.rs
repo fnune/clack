@@ -22,6 +22,8 @@ const STATUS_EVENT: &str = "clack://status";
 pub struct AppState {
     supervisor: Mutex<Supervisor>,
     toggle: Mutex<Option<MenuItem<Wry>>>,
+    /// Whether the window is still owed its first appearance.
+    reveal: Mutex<bool>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -53,6 +55,7 @@ pub fn run() {
             save_settings,
             reset_settings,
             settings_backup_path,
+            ready,
             start,
             stop,
             status,
@@ -83,8 +86,8 @@ pub fn run() {
                 dress_window(app.handle(), true);
             }
 
-            if !settings.desktop.start_hidden {
-                show_window(app.handle());
+            if let Ok(mut reveal) = app.state::<AppState>().reveal.lock() {
+                *reveal = !settings.desktop.start_hidden;
             }
 
             Ok(())
@@ -368,8 +371,28 @@ fn settings_backup_path() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn reset_settings() -> Result<Settings, String> {
-    Settings::reset().map_err(|error| error.to_string())
+fn reset_settings(app: AppHandle) -> Result<Settings, String> {
+    let settings = Settings::reset().map_err(|error| error.to_string())?;
+    dress_window(&app, settings.desktop.decorations);
+
+    Ok(settings)
+}
+
+/// The window is created hidden and shown from here, once the page has drawn
+/// itself. Showing it any earlier shows an empty transparent one: a black box, and
+/// then a flash as the page arrives over it.
+#[tauri::command]
+fn ready(app: AppHandle) {
+    let owed = app
+        .state::<AppState>()
+        .reveal
+        .lock()
+        .map(|mut reveal| std::mem::replace(&mut *reveal, false))
+        .unwrap_or(false);
+
+    if owed {
+        show_window(&app);
+    }
 }
 
 #[tauri::command]

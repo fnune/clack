@@ -213,6 +213,9 @@ export const api = {
     await invoke("save_settings", { settings });
   },
   resetSettings: async (): Promise<Settings> => parseSettings(await invoke("reset_settings")),
+  ready: async (): Promise<void> => {
+    await invoke("ready");
+  },
   settingsBackupPath: async (): Promise<string> => {
     const path = await invoke("settings_backup_path");
     if (typeof path !== "string") throw new ShapeError("settings_backup_path", path);

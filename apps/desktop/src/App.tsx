@@ -199,13 +199,23 @@ export function App() {
 
       const loaded = await api.loadSettings();
       setSettings(loaded);
-      document.documentElement.dataset.decorated = String(loaded.desktop.decorations);
       setPreview(await api.preview(loaded));
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
       setBackup(await api.settingsBackupPath());
-    }).finally(() => setLoading(false));
+    }).finally(() => {
+      setLoading(false);
+      void api.ready();
+    });
   }, [attempt]);
+
+  /// Follows the setting wherever it is changed from, so resetting cannot leave the
+  /// window dressed one way and drawn the other.
+  useEffect(() => {
+    if (settings !== null) {
+      document.documentElement.dataset.decorated = String(settings.desktop.decorations);
+    }
+  }, [settings]);
 
   useEffect(() => {
     const subscription = api.onStatus(setStatus);
@@ -273,13 +283,8 @@ export function App() {
   const editOverlay = (change: Partial<Overlay>) =>
     save({ ...settings, overlay: { ...settings.overlay, ...change } });
 
-  const editDesktop = (change: Partial<Desktop>) => {
-    if (change.decorations !== undefined) {
-      document.documentElement.dataset.decorated = String(change.decorations);
-    }
-
+  const editDesktop = (change: Partial<Desktop>) =>
     save({ ...settings, desktop: { ...settings.desktop, ...change } });
-  };
 
   const toggle = () =>
     void attempt(async () => {
