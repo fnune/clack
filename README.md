@@ -75,19 +75,16 @@ so does `--grant-access` below.
 ## Letting Clack read your keyboard
 
 Clack reads the kernel's input devices, which on most systems needs permission your user does not
-have. Run `clack --check` first: if it already reports readable keyboards, your distribution put
-you in a group that can, and there is nothing to do. Otherwise grant it once:
+have. Run `clack --check` first: if it reports readable keyboards, there is nothing to do.
+Otherwise grant it once:
 
 ```sh
 clack --grant-access
 ```
 
-The desktop app has a button for the same thing. Either way you are asked for your password once,
-nothing stays elevated, and later launches ask for nothing.
-
-`clack --revoke-access` takes it back, and the app offers that too. It deletes the rule and takes
-the access off the keyboards you already have, so it stops mattering straight away rather than at
-your next login. Afterwards nothing of Clack's is left outside your home directory.
+You are asked for your password once, nothing stays elevated, and later launches ask for nothing.
+`clack --revoke-access` takes it back, straight away rather than at your next login, and leaves
+nothing of Clack's outside your home directory. The desktop app has a button for both.
 
 ## Use
 
@@ -130,6 +127,19 @@ decorations = false
 Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a
 silent no-op, so a typo tells you instead of quietly doing nothing.
 
+## How it works
+
+Wayland gives no client the ability to watch another client's input, so screenkey's approach has no
+equivalent here. Clack reads `/dev/input/event*` directly, takes the keyboard layout from the
+compositor, and draws on a `wlr-layer-shell` surface, which is what puts the overlay above other
+windows rather than behind them.
+
+Developed on KDE Plasma. Works on any compositor implementing layer shell, which is most of them
+apart from GNOME's Mutter.
+
+[`DECISIONS.md`](DECISIONS.md) has the alternatives, why each one fails, and the compositor
+behaviour behind the drawing code.
+
 ## As a library
 
 Both programs are consumers of the `clack` crate. The overlay is one implementation of `Surface`,
@@ -149,39 +159,17 @@ impl Surface for Caption {
     }
 }
 
-let config = Config::default();
-let mut session = LiveSession::with_surface(Caption(String::new()), &config)?;
-let handle = session.handle();
-
-std::thread::spawn(move || {
-    handle.pause();
-    handle.resume();
-    handle.stop();
-});
-
+let mut session = LiveSession::with_surface(Caption(String::new()), &Config::default())?;
 session.run()?;
 ```
 
-`Handle` is the only thing that crosses threads. Reading, naming and drawing all happen on the
-thread that called `run`.
-
-## How it works
-
-Wayland gives no client the ability to watch another client's input, by design, so screenkey's
-approach has no equivalent here. Clack instead reads `/dev/input/event*` directly, asks the
-compositor for the keyboard layout it is already using, and draws on a `wlr-layer-shell` surface
-so the overlay sits above other windows rather than behind them.
-
-Developed on KDE Plasma. It should work on any compositor implementing layer shell, which is most
-of them apart from GNOME's Mutter.
-
-[`DECISIONS.md`](DECISIONS.md) has the long version: what the alternatives were, why each one fails,
-and the compositor behaviour that shaped the drawing code.
+`session.handle()` gives a `Handle` that pauses, resumes and stops the session from another thread,
+and is the only thing that crosses one. Reading, naming and drawing happen on the thread that
+called `run`.
 
 ## Development
 
-Everything comes from a [Nix](https://nixos.org/download/) flake, so
-[install Nix](https://nixos.org/download/) and the rest follows:
+Everything comes from a [Nix](https://nixos.org/download/) flake:
 
 ```sh
 nix develop
@@ -191,13 +179,8 @@ just desktop    # the desktop app, in development
 just e2e        # the built binary, a real compositor, checked from pixels
 ```
 
-Tests cannot reach your session: keys are fed through a pipe rather than a uinput device, and
-anything that draws runs inside a nested compositor.
-
-Commits follow [conventional commits](https://www.conventionalcommits.org), which is what
-[`CHANGELOG.md`](CHANGELOG.md) is generated from. `just notes` shows what the next release would
-say, and `just release <version>` tags one for CI to build.
-
+Commits follow [conventional commits](https://www.conventionalcommits.org), which
+[`CHANGELOG.md`](CHANGELOG.md) is generated from.
 [`engineering/README.md`](engineering/README.md) has the principles and conventions.
 
 MIT licensed.
