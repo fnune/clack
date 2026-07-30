@@ -49,16 +49,16 @@ so does `--grant-access` below.
 
 ## Letting Clack read your keyboard
 
-Clack reads the kernel's input devices, which needs permission your user does not have by
-default. Grant it once:
+Clack reads the kernel's input devices, which on most systems needs permission your user does not
+have. Run `clack --check` first: if it already reports readable keyboards, your distribution put
+you in a group that can, and there is nothing to do. Otherwise grant it once:
 
 ```sh
 clack --grant-access
 ```
 
 The desktop app has a button for the same thing. Either way you are asked for your password once,
-nothing stays elevated, and later launches ask for nothing. `clack --check` says whether it
-worked.
+nothing stays elevated, and later launches ask for nothing.
 
 `clack --revoke-access` takes it back, and the app offers that too. It deletes the rule and takes
 the access off the keyboards you already have, so it stops mattering straight away rather than at
@@ -67,13 +67,13 @@ your next login. Afterwards nothing of Clack's is left outside your home directo
 ## Use
 
 ```sh
-clack                                                  # show the overlay, Ctrl+C to stop
-clack --check                                          # will Clack work here?
-clack --anchor top --margin 140 --timeout 3             # where it sits, and for how long
-clack --font "JetBrains Mono Bold 28"                   # any font Pango can name
-clack --symbols                                        # space and enter get glyphs, not names
-clack --print                                          # keystrokes on stdout, to pipe anywhere
-clack --reset                                          # settings back to defaults, keeping a copy
+clack                                       # show the overlay, Ctrl+C to stop
+clack --check                               # will Clack work here?
+clack --anchor top --margin 140 --timeout 3 # where it sits, and for how long
+clack --font "JetBrains Mono Bold 28"       # any font Pango can name
+clack --symbols                             # space and enter get glyphs, not names
+clack --print                               # keystrokes on stdout, to pipe anywhere
+clack --reset                               # settings back to defaults, keeping a copy
 ```
 
 `--help` lists the rest. Your layout comes from your desktop, so what you configured there is
@@ -181,6 +181,10 @@ just e2e        # the built binary, a real compositor, checked from pixels
 
 Tests cannot reach your session: keys are fed through a pipe rather than a uinput device, and
 anything that draws runs inside a nested compositor.
+
+Commits follow [conventional commits](https://www.conventionalcommits.org), which is what
+[`CHANGELOG.md`](CHANGELOG.md) is generated from. `just notes` shows what the next release would
+say, and `just release <version>` tags one for CI to build.
 
 [`engineering/README.md`](engineering/README.md) has the principles and conventions.
 

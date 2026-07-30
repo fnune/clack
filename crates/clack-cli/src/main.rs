@@ -226,9 +226,11 @@ fn grant_access() -> anyhow::Result<()> {
     println!("and that access is revoked at logout.");
     println!();
 
-    access::install()?;
-    println!("Done. Run clack --check to confirm.");
+    if declined(access::install())? {
+        return Ok(());
+    }
 
+    println!("Done. Run clack --check to confirm.");
     Ok(())
 }
 
@@ -246,10 +248,25 @@ fn revoke_access() -> anyhow::Result<()> {
     println!("on the system outside your home directory.");
     println!();
 
-    access::remove()?;
-    println!("Done. A copy of Clack already running keeps the devices it opened; stop it too.");
+    if declined(access::remove())? {
+        return Ok(());
+    }
 
+    println!("Done. A copy of Clack already running keeps the devices it opened; stop it too.");
     Ok(())
+}
+
+/// Closing the prompt is an answer rather than a fault, so it leaves without a
+/// message on stderr and without a failing exit code.
+fn declined(outcome: Result<(), access::AccessError>) -> anyhow::Result<bool> {
+    match outcome {
+        Ok(()) => Ok(false),
+        Err(access::AccessError::Declined(_)) => {
+            println!("Nothing changed.");
+            Ok(true)
+        }
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn check() -> anyhow::Result<()> {

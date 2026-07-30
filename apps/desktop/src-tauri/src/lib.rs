@@ -402,9 +402,7 @@ fn diagnose() -> Result<Diagnosis, String> {
 /// elevated behind.
 #[tauri::command]
 fn grant_access() -> Result<Diagnosis, String> {
-    clack::access::install().map_err(|error| error.to_string())?;
-
-    diagnose()
+    change_access(clack::access::Change::Allow)
 }
 
 /// Deletes it again, the same way. A session already running holds its devices
@@ -415,9 +413,16 @@ fn revoke_access(app: AppHandle) -> Result<Diagnosis, String> {
     with_supervisor(&app, Supervisor::stop);
     publish(&app);
 
-    clack::access::remove().map_err(|error| error.to_string())?;
+    change_access(clack::access::Change::Revoke)
+}
 
-    diagnose()
+/// Closing the prompt is an answer, not a fault, so it reports the state it found
+/// rather than an error the window would show in red.
+fn change_access(change: clack::access::Change) -> Result<Diagnosis, String> {
+    match clack::access::elevate(change) {
+        Ok(()) | Err(clack::AccessError::Declined(_)) => diagnose(),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 fn summarise(report: &clack::Report) -> String {

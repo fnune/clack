@@ -55,10 +55,10 @@ pub enum AccessError {
     NoPkexec,
     #[error("running pkexec failed: {0}")]
     Pkexec(#[source] io::Error),
-    #[error("the password prompt was dismissed")]
-    Dismissed,
-    #[error("the change was refused or could not be made: {0}")]
-    Refused(String),
+    #[error("nothing was changed: {0}")]
+    Declined(String),
+    #[error("the change could not be made: {0}")]
+    Failed(String),
     #[error("finding this executable failed: {0}")]
     Unlocatable(#[source] io::Error),
     #[error("{0} did not run: {1}")]
@@ -111,9 +111,7 @@ pub fn elevate(change: Change) -> Result<(), AccessError> {
         command.arg(executable).arg(change.flag());
     }
 
-    // pkexec keeps 126 for a dismissed prompt and uses 127 for everything from a
-    // refusal to a failure of its own, so its own complaint is the only thing
-    // that can tell them apart. stdin stays attached for a terminal agent.
+    // stdin stays attached so a terminal authentication agent can still prompt.
     let outcome = command
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
@@ -122,10 +120,14 @@ pub fn elevate(change: Change) -> Result<(), AccessError> {
         .and_then(Child::wait_with_output)
         .map_err(AccessError::Pkexec)?;
 
+    // 126 and 127 are the two codes pkexec keeps for itself, covering a dismissed
+    // prompt and a refusal alike: polkit reports a cancelled dialog as not being
+    // authorised, so the two cannot be told apart and neither is a malfunction.
+    // Everything else is the exit code of Clack's own privileged half.
     match outcome.status.code() {
         Some(0) => Ok(()),
-        Some(126) => Err(AccessError::Dismissed),
-        code => Err(AccessError::Refused(complaint(&outcome.stderr, code))),
+        Some(126 | 127) => Err(AccessError::Declined(complaint(&outcome.stderr, None))),
+        code => Err(AccessError::Failed(complaint(&outcome.stderr, code))),
     }
 }
 
@@ -138,7 +140,7 @@ fn complaint(stderr: &[u8], code: Option<i32>) -> String {
 
     match code {
         Some(code) => format!("it exited with status {code}"),
-        None => "it was killed by a signal".to_owned(),
+        None => "the prompt was closed".to_owned(),
     }
 }
 
