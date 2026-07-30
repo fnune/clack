@@ -8,7 +8,11 @@
   --line: #cfccc5;
   --off: #c4c0b8;
   --knob: #ffffff;
-  --warn: #b4451f;
+  /* Amber for something to attend to, red for something that went wrong. Not
+     having granted a permission yet is the former, and it is the first thing a
+     new user sees. */
+  --warn: #8a5a00;
+  --error: #b4451f;
 
   color-scheme: light dark;
   font-family: ui-sans-serif, "Helvetica Neue", Helvetica, "Liberation Sans", Arial, sans-serif;
@@ -24,7 +28,8 @@
     --line: #35332f;
     --off: #46443f;
     --knob: #d9d6d0;
-    --warn: #e08160;
+    --warn: #d9a343;
+    --error: #e08160;
   }
 }
 
@@ -36,7 +41,8 @@
   --line: #35332f;
   --off: #46443f;
   --knob: #d9d6d0;
-  --warn: #e08160;
+  --warn: #d9a343;
+  --error: #e08160;
 }
 
 :root[data-theme="light"] {
@@ -47,7 +53,8 @@
   --line: #cfccc5;
   --off: #c4c0b8;
   --knob: #ffffff;
-  --warn: #b4451f;
+  --warn: #8a5a00;
+  --error: #b4451f;
 }
 
 * {
@@ -218,11 +225,13 @@ main {
   scale: 0.96;
 }
 
-/* The sign is not a dimmer ring, so it does not borrow the ring's resting colour.
-   Last of these rules, and more specific than `.power`, so nothing above puts the
-   stroke back. */
+/* Grey, not warn: this is the first thing a new user sees, and there is nothing
+   wrong with not having granted a permission yet. The shape already says the
+   control cannot be used, so the colour only has to stay out of the way. Last of
+   these rules, and more specific than `.power`, so nothing above it puts the
+   ring's own stroke back. */
 .power.caution {
-  stroke: var(--warn);
+  stroke: var(--off);
   stroke-linejoin: round;
 }
 
@@ -415,8 +424,6 @@ h2 {
   color: var(--ink-quiet);
 }
 
-/* The verdict leads the list: the answer first, the readings that justify it
-   underneath. */
 /* The verdict says the state and the link is the one way to change it, so a
    second row naming the same thing was filler. The verdict takes what is left and
    truncates; one word of action never has to. */
@@ -461,7 +468,7 @@ h2 {
 }
 
 .linkish.destructive {
-  color: var(--warn);
+  color: var(--error);
 }
 
 /* An answer never gives up width; the question does. */
@@ -819,8 +826,8 @@ pre {
 }
 
 .note.error {
-  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
-  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--error) 45%, var(--line));
+  background: color-mix(in srgb, var(--error) 12%, var(--surface));
   color: var(--ink);
 }
 
