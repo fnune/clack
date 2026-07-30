@@ -194,6 +194,12 @@ main {
   padding: 6px 16px 16px;
 }
 
+/* The strip supplies the air above the content, so without one the content has to
+   supply its own and sit an even distance from every edge. */
+:root[data-decorated="true"] main {
+  padding-top: 16px;
+}
+
 /* The cap is on the content, not on the thing that scrolls: capping the scroller
    would put its scrollbar wherever the column ended rather than at the window's
    edge.
