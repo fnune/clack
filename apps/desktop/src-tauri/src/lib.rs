@@ -54,6 +54,7 @@ pub fn run() {
             load_settings,
             save_settings,
             reset_settings,
+            settings_backup_path,
             start,
             stop,
             status,
@@ -343,14 +344,18 @@ fn save_settings(settings: Settings) -> Result<(), String> {
     settings.save().map_err(|error| error.to_string())
 }
 
-/// Writes the defaults over whatever is there, including anything hand-edited in
-/// the file that the window never shows.
+/// Where a reset would leave the settings it replaces, so the window can name it
+/// before asking rather than after.
+#[tauri::command]
+fn settings_backup_path() -> Result<String, String> {
+    clack::settings::backup_path()
+        .map(|path| path.display().to_string())
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn reset_settings() -> Result<Settings, String> {
-    let settings = Settings::default();
-    settings.save().map_err(|error| error.to_string())?;
-
-    Ok(settings)
+    Settings::reset().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

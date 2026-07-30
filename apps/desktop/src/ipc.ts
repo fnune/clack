@@ -215,6 +215,11 @@ export const api = {
     await invoke("save_settings", { settings });
   },
   resetSettings: async (): Promise<Settings> => parseSettings(await invoke("reset_settings")),
+  settingsBackupPath: async (): Promise<string> => {
+    const path = await invoke("settings_backup_path");
+    if (typeof path !== "string") throw new ShapeError("settings_backup_path", path);
+    return path;
+  },
   start: async (settings: Settings): Promise<Status> =>
     parseStatus(await invoke("start", { settings })),
   stop: async (): Promise<Status> => parseStatus(await invoke("stop")),

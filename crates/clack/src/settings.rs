@@ -124,12 +124,47 @@ impl Settings {
         fs::write(path, text)
             .map_err(|error| SettingsError::Writing(path.display().to_string(), error))
     }
+
+    pub fn reset() -> Result<Self, SettingsError> {
+        Self::reset_at(&path()?)
+    }
+
+    /// Replaces the file with the defaults, keeping what was there alongside it.
+    /// The old file is the only record of anything hand-edited that no window
+    /// shows, so it is copied before it is lost, and the copy is what the caller
+    /// tells the user about.
+    pub fn reset_at(path: &Path) -> Result<Self, SettingsError> {
+        if path.exists() {
+            let backup = backup_for(path);
+            fs::copy(path, &backup)
+                .map_err(|error| SettingsError::Writing(backup.display().to_string(), error))?;
+        }
+
+        let settings = Self::default();
+        settings.save_to(path)?;
+
+        Ok(settings)
+    }
 }
 
 /// `$XDG_CONFIG_HOME/clack/config.toml`, falling back to the default that the
 /// XDG base directory specification gives for an unset variable.
 pub fn path() -> Result<PathBuf, SettingsError> {
     Ok(config_home()?.join("clack").join("config.toml"))
+}
+
+/// Where a reset leaves the settings it replaced.
+pub fn backup_path() -> Result<PathBuf, SettingsError> {
+    Ok(backup_for(&path()?))
+}
+
+/// Appended to the whole path rather than swapping the extension, so
+/// `config.toml` becomes `config.toml.bak` and says what it is a backup of.
+fn backup_for(path: &Path) -> PathBuf {
+    let mut appended = path.as_os_str().to_owned();
+    appended.push(".bak");
+
+    PathBuf::from(appended)
 }
 
 fn config_home() -> Result<PathBuf, SettingsError> {
@@ -201,6 +236,47 @@ mod tests {
         let text = toml::to_string_pretty(&settings).unwrap();
 
         assert_eq!(toml::from_str::<Settings>(&text).unwrap(), settings);
+    }
+
+    #[test]
+    fn a_backup_says_what_it_is_a_backup_of() {
+        assert_eq!(
+            backup_for(Path::new("/home/someone/.config/clack/config.toml")),
+            Path::new("/home/someone/.config/clack/config.toml.bak")
+        );
+    }
+
+    #[test]
+    fn a_reset_keeps_what_it_replaced() {
+        let directory = std::env::temp_dir().join("clack-reset-test");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.toml");
+        fs::write(&path, "[overlay]\nmargin = 12\n").unwrap();
+
+        let reset = Settings::reset_at(&path).unwrap();
+
+        assert_eq!(reset, Settings::default());
+        assert_eq!(
+            Settings::load_from(&backup_for(&path))
+                .unwrap()
+                .overlay
+                .margin,
+            12
+        );
+
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn a_reset_with_nothing_to_replace_writes_the_defaults_anyway() {
+        let directory = std::env::temp_dir().join("clack-reset-fresh-test");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.toml");
+
+        assert_eq!(Settings::reset_at(&path).unwrap(), Settings::default());
+        assert!(!backup_for(&path).exists());
+
+        fs::remove_dir_all(&directory).unwrap();
     }
 
     #[test]

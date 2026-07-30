@@ -22,6 +22,12 @@ function PowerRing() {
   );
 }
 
+/// The confirmation names the file, not the path it sits in, which is the same
+/// directory the settings already came from.
+function basename(path: string | null): string {
+  return path === null ? "a backup" : (path.split("/").pop() ?? path);
+}
+
 /// Pango describes a font as family, style and size in one string; the preview
 /// only needs the family.
 function pangoFamily(font: string): string {
@@ -58,6 +64,8 @@ export function App() {
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [backup, setBackup] = useState<string | null>(null);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const attempt = useCallback(async (action: () => Promise<void>) => {
     try {
@@ -84,6 +92,7 @@ export function App() {
       setPreview(await api.preview(loaded));
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
+      setBackup(await api.settingsBackupPath());
     });
   }, [attempt]);
 
@@ -314,19 +323,40 @@ export function App() {
       </section>
 
       <footer>
-        <button
-          className="linkish"
-          type="button"
-          onClick={() =>
-            void attempt(async () => {
-              const defaults = await api.resetSettings();
-              setSettings(defaults);
-              setPreview(await api.preview(defaults));
-            })
-          }
-        >
-          Reset to defaults
-        </button>
+        {confirmingReset ? (
+          <div className="confirm">
+            <p>
+              Reset every setting? Your current settings are copied to{" "}
+              <span className="filename" title={backup ?? undefined}>
+                {basename(backup)}
+              </span>{" "}
+              first.
+            </p>
+            <div className="choices">
+              <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
+                Keep them
+              </button>
+              <button
+                className="linkish destructive"
+                type="button"
+                onClick={() =>
+                  void attempt(async () => {
+                    const defaults = await api.resetSettings();
+                    setConfirmingReset(false);
+                    setSettings(defaults);
+                    setPreview(await api.preview(defaults));
+                  })
+                }
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
+            Reset to defaults
+          </button>
+        )}
       </footer>
     </main>
   );
