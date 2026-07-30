@@ -14,6 +14,9 @@
   --warn: #8a5a00;
   --warn-ink: #ffffff;
   --error: #b4451f;
+  /* Named because the content has to be pushed off the left edge by exactly what
+     the scrollbar takes from the right one. */
+  --scrollbar: 11px;
 
   color-scheme: light dark;
   font-family: ui-sans-serif, "Helvetica Neue", Helvetica, "Liberation Sans", Arial, sans-serif;
@@ -110,7 +113,7 @@ body {
    opts out of that: one width, always, and a thumb held off the window's edge by a
    transparent border so it sits inside the rounded corner rather than across it. */
 ::-webkit-scrollbar {
-  width: 11px;
+  width: var(--scrollbar);
 }
 
 ::-webkit-scrollbar-track {
@@ -191,12 +194,12 @@ main {
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
-  /* The scrollbar takes its width from the right side alone, so the content sat
-     nearer the left edge than the right. Reserving the same room on both edges,
-     whether or not there is anything to scroll, is the only way the two stay
-     equal. */
-  scrollbar-gutter: stable both-edges;
-  padding: 6px 16px 16px;
+  /* The scrollbar takes its width from the right side alone, so the left padding
+     carries the same width again to match it. `stable` keeps that room reserved
+     whether or not there is anything to scroll, so nothing shifts sideways when
+     the content grows past the window. */
+  scrollbar-gutter: stable;
+  padding: 6px 16px 16px calc(16px + var(--scrollbar));
 }
 
 /* The strip supplies the air above the content, so without one the content has to
