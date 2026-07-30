@@ -23,6 +23,20 @@ function PowerRing() {
   );
 }
 
+/// Stands in for the ring when there is nothing to switch on. A different shape
+/// rather than a paler one, because a dimmer ring is the same control looking
+/// slightly off and this is not that. The dot is a round cap on a line going
+/// nowhere, so the whole sign stays a stroke and inherits the ring's weight.
+function WarningSign() {
+  return (
+    <svg className="power caution" viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M 24 9 L 42 40 H 6 Z" />
+      <path d="M 24 21 V 29" />
+      <path d="M 24 34.5 h 0.01" />
+    </svg>
+  );
+}
+
 /// The path goes last so that the ellipsis eats it rather than the question, and
 /// the title carries what the line could not fit.
 function askedInFull(backup: string | null): string {
@@ -178,6 +192,7 @@ export function App() {
     });
 
   const said = verdict(diagnosis);
+  const stuck = diagnosis !== null && !diagnosis.usable;
 
   return (
     <main>
@@ -188,11 +203,11 @@ export function App() {
           role="switch"
           aria-checked={status.running}
           aria-label="Show keystrokes"
-          disabled={diagnosis !== null && !diagnosis.usable && !status.running}
-          title={diagnosis !== null && !diagnosis.usable ? said.detail : "Show keystrokes"}
+          disabled={stuck && !status.running}
+          title={stuck ? said.detail : "Show keystrokes"}
           onClick={toggle}
         >
-          <PowerRing />
+          {stuck && !status.running ? <WarningSign /> : <PowerRing />}
         </button>
       </div>
 

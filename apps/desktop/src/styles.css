@@ -171,7 +171,7 @@ main {
   width: 58px;
   height: 58px;
   fill: none;
-  stroke: var(--off);
+  stroke: color-mix(in srgb, var(--ink) 40%, var(--off));
   stroke-width: 3.2;
   stroke-linecap: round;
   /* A drop-shadow that is already there, just invisible. Transitioning a filter
@@ -218,10 +218,12 @@ main {
   scale: 0.96;
 }
 
-/* Last of the ring's rules, so a control with nothing to switch stays dim
-   whatever else is going on around it. */
-.control:disabled .power {
-  stroke: color-mix(in srgb, var(--off) 45%, var(--surface));
+/* The sign is not a dimmer ring, so it does not borrow the ring's resting colour.
+   Last of these rules, and more specific than `.power`, so nothing above puts the
+   stroke back. */
+.power.caution {
+  stroke: var(--warn);
+  stroke-linejoin: round;
 }
 
 /* The overlay, as it will actually look. */
