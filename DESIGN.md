@@ -106,6 +106,22 @@ Two host quirks it works around, neither a choice:
 - GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar, which looks foreign on KDE. The window is undecorated by default and draws one thin line carrying its name and a way out, so there is nothing to look foreign; `decorations = true` hands the frame back to the desktop, and XWayland is what makes that frame the desktop's own rather than GTK's.
 - On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. `scripts/desktop.sh` routes it through nixGL.
 
+## The mark
+
+Three keys of rising height standing on a shared floor, the newest and brightest on the right: recent keys decaying, along the bottom edge, which is what Clack does and where it does it. Outline only, on a 24-unit grid, keys 4.8 wide pitched 7.4 apart with the floor at 20.2. Strokes are centred, so nothing overlaps at any weight the icon is drawn at.
+
+A tray icon owns no colour. Panels paint symbolic icons in their own foreground, and Plasma's are hairlines, so a filled mark sits in the row like a lamp. Clack's is one stroked path in `currentColor`; the window tints it with the text colour it sits in, and the app follows the desktop's accent only where the accent already lives, on the switch.
+
+Three states, and each is the same drawing rather than a second glyph: idle is the three outlines, showing keys fills the newest one, and an error keeps the footprint while that key snaps along a diagonal, its bottom-left bracket holding the edges the whole key had. No slash, no badge, no fourth state for a keypress: the overlay already shows the keys, and an icon that flickers as you type is the opposite of a guest on someone's screen.
+
+Opacity does not carry the state, though it was the obvious way to. A panel paints its icons at one colour, at a size it chooses, and does not dim them, so the 30% trail this started as arrived as a smudge: measured, the file handed to the panel had a maximum alpha of 0.3 across every pixel. The tray mark is full strength throughout and a fill is what changes. The decay is still drawn with opacity where opacity survives, on the plate and in the window. The stroke is heavier there too, because a panel scales whatever it is given and a hairline lands half on one row of pixels and half on the next.
+
+The tray icon is drawn at runtime with cairo, in `apps/desktop/src-tauri/src/logo.rs`, rather than shipped as pixels. Three states times the panel's two possible foregrounds is six files to keep in step with a drawing, and the colour is not knowable until the appearance portal is asked. Cairo is already linked for the overlay. Coverage is drawn into an alpha-only surface and the colour added on the way out, which is what a tray wants: straight, non-premultiplied RGBA.
+
+Clack talks to `libappindicator` itself, in `tray.rs`, instead of using Tauri's tray. An indicator publishes its icon as a *name* and the panel resolves that name against a directory it is given, so Clack writes one file per state into a directory of its own and changes state by changing the name. Tauri's tray does the opposite: it writes each new drawing to a new file and publishes an absolute path to it. The indicator announces only the first of those paths and never another, so on this desktop every later drawing landed in a file nothing read, while deleting the one before it left the panel holding a path to nothing and drawing an empty space. `set_icon` reports success throughout. Tauri's own documentation is silent on this and marks only `set_tooltip` as unsupported on Linux, which it also is. Two things were tried before the indicator: writing each drawing over the path that was announced, and replacing the tray item outright. The first is not read again, and the second leaks: dropping a tray does not unregister its item, so the panel accumulates one dead entry per toggle.
+
+The bundled application icons are the same geometry on a dark plate, generated from `packaging/icon.svg` by `scripts/icons.sh`. The 32-pixel one is rendered at a heavier stroke rather than scaled down to it, for the reason a hairline is a proportion of the drawing and 1.6 of 32 pixels is a grey smudge.
+
 ## Distribution
 
 Nix builds every check, but nothing shipped to users comes out of it. An AppImage has to bundle the

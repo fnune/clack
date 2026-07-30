@@ -9,6 +9,7 @@ import {
   type Settings,
   type Status,
 } from "./ipc";
+import { Logo } from "./logo";
 import { Notifications, useNotifications } from "./notifications";
 
 const EMPTY_STATUS: Status = { running: false, failure: null };
@@ -258,7 +259,10 @@ export function App() {
   if (settings === null) {
     return (
       <main>
-        <p className="status">{loading ? "Loading." : "Clack could not read its settings."}</p>
+        <p className="status">
+          <Logo mood="idle" />
+          {loading ? "Loading." : "Clack could not read its settings."}
+        </p>
         <Notifications notes={notes} onDismiss={dismiss} />
       </main>
     );

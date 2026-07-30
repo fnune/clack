@@ -1,3 +1,5 @@
+<img src="assets/icon.png" alt="" align="right" width="104">
+
 # Clack
 
 Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland desktops,

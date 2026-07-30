@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Clack</title>
+  <!-- Three keys of rising height standing on a shared floor, the newest on the
+       right, brightening the same way: the mark is drawn once here and once in
+       apps/desktop/src-tauri/src/logo.rs, which the tray is painted from.
+       On a 24-unit grid the keys are 4.8 wide, pitched 7.4 apart, with the floor
+       at 20.2. Scaled to the middle 77% of the plate, the grid's own padding
+       keeps the mark off the corners. -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="0.55" y2="1">
+      <stop offset="0" stop-color="#1e2124"/>
+      <stop offset="1" stop-color="#101112"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="117" fill="url(#plate)"/>
+
+  <g transform="translate(59 59) scale(16.4167)"
+     fill="none" stroke="#e9eaec" stroke-width="1.6"
+     stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2.2" y="15.2" width="4.8" height="5" rx="1.5" opacity="0.55"/>
+    <rect x="9.6" y="14" width="4.8" height="6.2" rx="1.5" opacity="0.75"/>
+    <rect x="17" y="12.8" width="4.8" height="7.4" rx="1.5"/>
+  </g>
+</svg>

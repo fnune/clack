@@ -25,19 +25,15 @@
     ],
     "security": {
       "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'"
-    },
-    "trayIcon": {
-      "id": "main",
-      "iconPath": "icons/32x32.png"
     }
   },
   "bundle": {
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
+      "icons/icon.png",
       "icons/128x128.png",
-      "icons/icon.png"
+      "icons/32x32.png"
     ]
   }
 }

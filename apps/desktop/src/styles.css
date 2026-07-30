@@ -163,6 +163,19 @@ header:active {
   user-select: none;
 }
 
+/* Nothing smaller is worth drawing: the strokes are a proportion of the box, and
+   below about 20 pixels they fall under one of the screen's. */
+.logo {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .shut {
   grid-column: 3;
   justify-self: end;
@@ -901,6 +914,9 @@ button:focus-visible {
 }
 
 .status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   color: var(--ink-quiet);
 }

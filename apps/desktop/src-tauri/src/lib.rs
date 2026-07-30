@@ -1,29 +1,32 @@
+#![cfg_attr(test, allow(clippy::expect_used, clippy::panic, clippy::unwrap_used))]
+
 mod appearance;
+mod logo;
 mod supervisor;
+mod tray;
 
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent, Wry};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 use clack::Settings;
 
 use crate::appearance::Appearance;
+use crate::logo::Mood;
 use crate::supervisor::Supervisor;
 
-const SHOW: &str = "show";
-const TOGGLE: &str = "toggle";
-const QUIT: &str = "quit";
 const STATUS_EVENT: &str = "clack://status";
 
 #[derive(Default)]
 pub struct AppState {
     supervisor: Mutex<Supervisor>,
-    toggle: Mutex<Option<MenuItem<Wry>>>,
     /// Whether the window is still owed its first appearance.
     reveal: Mutex<bool>,
+    /// Why the last attempt to show keys did not work. The session itself only
+    /// remembers a failure for as long as it is running, and the tray has to be
+    /// able to say something went wrong with no window open to say it in.
+    trouble: Mutex<Option<String>>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -71,7 +74,7 @@ pub fn run() {
                 Settings::default()
             });
 
-            install_tray(app.handle())?;
+            tray::install(app.handle())?;
 
             if settings.desktop.start_overlay {
                 let handle = app.handle().clone();
@@ -105,47 +108,28 @@ pub fn run() {
         .map_or_else(
             |error| eprintln!("clack-desktop: {error}"),
             |app| {
-                app.run(|handle, event| {
-                    if matches!(event, RunEvent::ExitRequested { .. }) {
-                        with_supervisor(handle, Supervisor::stop);
-                    }
+                app.run(|handle, event| match event {
+                    // Whatever the launch left behind, said in the tray. Starting
+                    // hidden means this is the only place it gets said at all.
+                    RunEvent::Ready => publish(handle),
+                    RunEvent::ExitRequested { .. } => with_supervisor(handle, Supervisor::stop),
+                    _ => {}
                 });
             },
         );
 }
 
-fn install_tray(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, SHOW, "Show settings", true, None::<&str>)?;
-    let toggle = MenuItem::with_id(app, TOGGLE, "Start showing keys", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, QUIT, "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(
-        app,
-        &[&show, &toggle, &PredefinedMenuItem::separator(app)?, &quit],
-    )?;
-
-    if let Ok(mut slot) = app.state::<AppState>().toggle.lock() {
-        *slot = Some(toggle);
+pub(crate) fn label(running: bool) -> &'static str {
+    if running {
+        "Stop showing keys"
+    } else {
+        "Start showing keys"
     }
+}
 
-    TrayIconBuilder::with_id("main")
-        .icon(app.default_window_icon().cloned().ok_or_else(|| {
-            tauri::Error::AssetNotFound("the tray icon is missing from the bundle".to_owned())
-        })?)
-        .tooltip("Clack")
-        .menu(&menu)
-        .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            SHOW => show_window(app),
-            TOGGLE => toggle_session(app),
-            QUIT => {
-                with_supervisor(app, Supervisor::stop);
-                app.exit(0);
-            }
-            _ => {}
-        })
-        .build(app)?;
-
-    Ok(())
+pub(crate) fn quit(app: &AppHandle) {
+    with_supervisor(app, Supervisor::stop);
+    app.exit(0);
 }
 
 /// Whether the window wears the desktop's own title bar. The web view draws its
@@ -156,18 +140,18 @@ fn dress_window(app: &AppHandle, decorated: bool) {
     }
 }
 
-fn show_window(app: &AppHandle) {
+pub(crate) fn show_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
     }
 }
 
-fn toggle_session(app: &AppHandle) {
+pub(crate) fn toggle_session(app: &AppHandle) {
     let running = read_status(app).running;
 
     let outcome = if running {
-        with_supervisor(app, Supervisor::stop);
+        stop_session(app);
         Ok(())
     } else {
         match Settings::load() {
@@ -185,19 +169,37 @@ fn toggle_session(app: &AppHandle) {
 
 fn start_session(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let state = app.state::<AppState>();
-    let mut supervisor = state
+    let outcome = state
         .supervisor
         .lock()
-        .map_err(|_| "the session lock is poisoned".to_owned())?;
+        .map_err(|_| "the session lock is poisoned".to_owned())
+        .and_then(|mut supervisor| {
+            supervisor
+                .start(settings.overlay.to_config())
+                .map_err(|error| error.to_string())
+        });
 
-    supervisor
-        .start(settings.overlay.to_config())
-        .map_err(|error| error.to_string())
+    remember(app, outcome.as_ref().err().cloned());
+
+    outcome
+}
+
+/// Stopping is an answer, not a fault: whatever went wrong last time is no longer
+/// what Clack is doing, so the tray goes back to idle rather than staying broken.
+fn stop_session(app: &AppHandle) {
+    with_supervisor(app, Supervisor::stop);
+    remember(app, None);
 }
 
 fn with_supervisor(app: &AppHandle, action: impl FnOnce(&mut Supervisor)) {
     if let Ok(mut supervisor) = app.state::<AppState>().supervisor.lock() {
         action(&mut supervisor);
+    }
+}
+
+fn remember(app: &AppHandle, trouble: Option<String>) {
+    if let Ok(mut slot) = app.state::<AppState>().trouble.lock() {
+        *slot = trouble;
     }
 }
 
@@ -218,22 +220,36 @@ fn read_status(app: &AppHandle) -> Status {
     }
 }
 
-/// Keeps the window and the tray menu agreeing about what is happening.
+/// Keeps the window, the tray icon and the tray menu agreeing about what is
+/// happening.
 fn publish(app: &AppHandle) {
     let status = read_status(app);
+    let mood = describe(app, &status);
+    let running = status.running;
 
-    if let Ok(toggle) = app.state::<AppState>().toggle.lock()
-        && let Some(item) = toggle.as_ref()
-    {
-        let label = if status.running {
-            "Stop showing keys"
-        } else {
-            "Start showing keys"
-        };
-        let _ = item.set_text(label);
-    }
+    // The tray is GTK, and GTK belongs to the thread running the loop. A command
+    // from the window does not arrive on it.
+    let _ = app.run_on_main_thread(move || tray::wear(mood, running));
 
     let _ = app.emit(STATUS_EVENT, status);
+}
+
+/// A failure the session reported outlives the session that reported it, so both
+/// it and what was remembered are asked.
+fn describe(app: &AppHandle, status: &Status) -> Mood {
+    let troubled = app
+        .state::<AppState>()
+        .trouble
+        .lock()
+        .is_ok_and(|slot| slot.is_some());
+
+    if status.failure.is_some() || troubled {
+        Mood::Stuck
+    } else if status.running {
+        Mood::Showing
+    } else {
+        Mood::Idle
+    }
 }
 
 /// Keys worth offering a replacement for. Everything else is reachable from the
@@ -406,7 +422,7 @@ fn start(app: AppHandle, settings: Settings) -> Result<Status, String> {
 
 #[tauri::command]
 fn stop(app: AppHandle) -> Status {
-    with_supervisor(&app, Supervisor::stop);
+    stop_session(&app);
     publish(&app);
 
     read_status(&app)
@@ -444,7 +460,7 @@ fn grant_access() -> Result<Diagnosis, String> {
 /// do so was withdrawn is not something to leave running.
 #[tauri::command]
 fn revoke_access(app: AppHandle) -> Result<Diagnosis, String> {
-    with_supervisor(&app, Supervisor::stop);
+    stop_session(&app);
     publish(&app);
 
     change_access(clack::access::Change::Revoke)
