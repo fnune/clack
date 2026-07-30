@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/icon-on-dark.png">
-  <img src="assets/icon.png" alt="" width="96">
-</picture>
+<img src="assets/icon.png" alt="" width="96">
 
 # Clack
 
