@@ -173,7 +173,16 @@ impl Settings {
         }
 
         let text = toml::to_string_pretty(&self.clamped())?;
-        fs::write(path, text)
+
+        // Written beside the real file and moved onto it, because `fs::write`
+        // truncates first: a crash or a second writer part-way through would
+        // otherwise leave nothing where someone's settings were. A rename within
+        // one directory either happens or does not.
+        let partial = beside(path, ".new");
+        fs::write(&partial, text)
+            .map_err(|error| SettingsError::Writing(partial.display().to_string(), error))?;
+
+        fs::rename(&partial, path)
             .map_err(|error| SettingsError::Writing(path.display().to_string(), error))
     }
 
@@ -210,11 +219,17 @@ pub fn backup_path() -> Result<PathBuf, SettingsError> {
     Ok(backup_for(&path()?))
 }
 
-/// Appended to the whole path rather than swapping the extension, so
-/// `config.toml` becomes `config.toml.bak` and says what it is a backup of.
 fn backup_for(path: &Path) -> PathBuf {
+    beside(path, ".bak")
+}
+
+/// Appended to the whole path rather than swapping the extension, so
+/// `config.toml` becomes `config.toml.bak` and says what it is a copy of. Also
+/// keeps the neighbour in the same directory, which a rename onto the original
+/// needs in order to be atomic.
+fn beside(path: &Path, suffix: &str) -> PathBuf {
     let mut appended = path.as_os_str().to_owned();
-    appended.push(".bak");
+    appended.push(suffix);
 
     PathBuf::from(appended)
 }
@@ -327,6 +342,24 @@ mod tests {
 
         assert_eq!(Settings::reset_at(&path).unwrap(), Settings::default());
         assert!(!backup_for(&path).exists());
+
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn saving_leaves_nothing_beside_the_file_it_wrote() {
+        let directory = std::env::temp_dir().join("clack-atomic-test");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.toml");
+
+        Settings::default().save_to(&path).unwrap();
+
+        assert!(path.exists());
+        assert!(
+            !beside(&path, ".new").exists(),
+            "the half-written neighbour should have been renamed, not left"
+        );
+        assert_eq!(Settings::load_from(&path).unwrap(), Settings::default());
 
         fs::remove_dir_all(&directory).unwrap();
     }

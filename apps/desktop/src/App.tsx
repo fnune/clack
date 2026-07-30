@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   type Desktop,
@@ -11,6 +11,10 @@ import {
 import { Notifications, useNotifications } from "./notifications";
 
 const EMPTY_STATUS: Status = { running: false, failure: null };
+
+/// Long enough to gather a burst of typing, short enough that letting go of the
+/// keyboard and reaching for the tray cannot outrun it.
+const WRITE_DELAY = 250;
 
 /// IEC 5010, drawn as geometry rather than a full circle with the gap covered
 /// over: the arc simply stops where the stem passes through.
@@ -168,6 +172,7 @@ export function App() {
   const { notes, notify, dismiss } = useNotifications();
   const [backup, setBackup] = useState<string | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const writing = useRef<number | null>(null);
 
   const attempt = useCallback(
     async (action: () => Promise<void>) => {
@@ -224,12 +229,20 @@ export function App() {
     );
   }
 
+  /// The box shows the change at once; the file catches up. Typing a font wrote
+  /// the file and re-rendered the preview on every keystroke, and short as the
+  /// wait is, it also means one write per edit rather than one per character.
   const save = (next: Settings) => {
     setSettings(next);
-    void attempt(async () => {
-      await api.saveSettings(next);
-      setPreview(await api.preview(next));
-    });
+
+    if (writing.current !== null) window.clearTimeout(writing.current);
+    writing.current = window.setTimeout(() => {
+      writing.current = null;
+      void attempt(async () => {
+        await api.saveSettings(next);
+        setPreview(await api.preview(next));
+      });
+    }, WRITE_DELAY);
   };
 
   const editOverlay = (change: Partial<Overlay>) =>
