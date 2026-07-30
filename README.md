@@ -1,15 +1,21 @@
+<div align="center">
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/icon-on-dark.png">
-  <img src="assets/icon.png" alt="" width="72">
+  <img src="assets/icon.png" alt="" width="96">
 </picture>
 
 # Clack
 
-Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland desktops,
-where [screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot go.
+Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland
+desktops, where [screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot go.
 
-![The Clack window above the overlay it draws, showing the keys just
-typed](assets/clack.png)
+[![CI](https://github.com/fnune/clack/actions/workflows/ci.yml/badge.svg)](https://github.com/fnune/clack/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/fnune/clack?label=release)](https://github.com/fnune/clack/releases/latest)
+
+<img src="assets/clack.png" alt="The Clack window above the overlay it draws, showing the keys just typed">
+
+</div>
 
 There is a desktop app with a tray icon and a single switch, and a command line program. Both do
 the same thing and share the same settings.
