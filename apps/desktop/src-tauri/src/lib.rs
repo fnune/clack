@@ -407,10 +407,14 @@ fn grant_access() -> Result<Diagnosis, String> {
     diagnose()
 }
 
-/// Deletes it again, the same way. Devices already open stay readable until the
-/// user logs out, which is the ACL's doing rather than Clack's.
+/// Deletes it again, the same way. A session already running holds its devices
+/// open, so it is stopped first: carrying on reading keys after the permission to
+/// do so was withdrawn is not something to leave running.
 #[tauri::command]
-fn revoke_access() -> Result<Diagnosis, String> {
+fn revoke_access(app: AppHandle) -> Result<Diagnosis, String> {
+    with_supervisor(&app, Supervisor::stop);
+    publish(&app);
+
     clack::access::remove().map_err(|error| error.to_string())?;
 
     diagnose()

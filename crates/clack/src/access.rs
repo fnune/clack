@@ -181,16 +181,64 @@ pub fn apply_as_root(change: Change) -> Result<(), AccessError> {
             fs::write(path, RULE).map_err(as_access_error)?;
         }
         // Already gone is the outcome the caller wanted, not a failure.
-        Change::Revoke => match fs::remove_file(path) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                return Err(as_access_error(error));
+        Change::Revoke => {
+            match fs::remove_file(path) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                    return Err(as_access_error(error));
+                }
+                _ => {}
             }
-            _ => {}
-        },
+
+            close_existing_nodes();
+        }
     }
 
     udevadm(&["control", "--reload"])?;
     udevadm(&["trigger", "--subsystem-match=input"])
+}
+
+/// Deleting the rule only stops the ACL being granted again. logind already put
+/// one on every device node that existed, and nothing takes it off until the node
+/// is recreated or the user logs out, so revoking has to strip those itself or it
+/// changes nothing anyone can see.
+///
+/// Best effort: a system without `setfacl` still loses the rule, and access then
+/// ends at logout. Only keyboards are touched, and the caller's `udevadm trigger`
+/// puts back anything another rule still tags.
+fn close_existing_nodes() {
+    let (Some(user), Some(setfacl)) = (invoking_user(), which("setfacl")) else {
+        return;
+    };
+
+    let Ok(devices) = crate::input::survey() else {
+        return;
+    };
+
+    for device in devices {
+        if !matches!(device.access, crate::input::Access::Keyboard) {
+            continue;
+        }
+
+        let _ = Command::new(&setfacl)
+            .arg("-x")
+            .arg(format!("u:{user}"))
+            .arg(&device.path)
+            .status();
+    }
+}
+
+/// Who asked, rather than who is running. pkexec keeps the original user's id
+/// here, and root's own id is no use for taking an ACL away.
+fn invoking_user() -> Option<String> {
+    ["PKEXEC_UID", "SUDO_UID"]
+        .into_iter()
+        .filter_map(|name| env::var(name).ok())
+        .find(|value| is_user_id(value))
+}
+
+/// The value reaches a command line, so it has to be an id and nothing else.
+fn is_user_id(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|character| character.is_ascii_digit())
 }
 
 fn as_access_error(error: io::Error) -> AccessError {
@@ -263,6 +311,14 @@ mod tests {
     #[test]
     fn the_two_directions_do_not_share_a_flag() {
         assert_ne!(Change::Allow.flag(), Change::Revoke.flag());
+    }
+
+    #[test]
+    fn only_digits_count_as_a_user_id() {
+        assert!(is_user_id("1000"));
+        assert!(!is_user_id(""));
+        assert!(!is_user_id("1000 -x"), "an id never carries an argument");
+        assert!(!is_user_id("fausto"), "setfacl would read a name as a name");
     }
 
     #[test]

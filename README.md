@@ -60,9 +60,9 @@ The desktop app has a button for the same thing. Either way you are asked for yo
 nothing stays elevated, and later launches ask for nothing. `clack --check` says whether it
 worked.
 
-`clack --revoke-access` takes it back, and the app offers that too. Afterwards nothing of Clack's
-is left outside your home directory. Devices already open stay readable until you log out, which
-is how the ACL works rather than anything Clack decides.
+`clack --revoke-access` takes it back, and the app offers that too. It deletes the rule and takes
+the access off the keyboards you already have, so it stops mattering straight away rather than at
+your next login. Afterwards nothing of Clack's is left outside your home directory.
 
 ## Use
 

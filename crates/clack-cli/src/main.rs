@@ -247,7 +247,7 @@ fn revoke_access() -> anyhow::Result<()> {
     println!();
 
     access::remove()?;
-    println!("Done. Devices already open stay readable until you log out.");
+    println!("Done. A copy of Clack already running keeps the devices it opened; stop it too.");
 
     Ok(())
 }
