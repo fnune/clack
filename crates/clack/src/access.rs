@@ -196,7 +196,12 @@ pub fn apply_as_root(change: Change) -> Result<(), AccessError> {
     }
 
     udevadm(&["control", "--reload"])?;
-    udevadm(&["trigger", "--subsystem-match=input"])
+    udevadm(&["trigger", "--subsystem-match=input"])?;
+
+    // Triggering only queues the events. Without waiting, whoever asked for this
+    // reports on the devices as they were and tells the user to log out for a
+    // change that is already on its way.
+    udevadm(&["settle", "--timeout=10"])
 }
 
 /// Deleting the rule only stops the ACL being granted again. logind already put

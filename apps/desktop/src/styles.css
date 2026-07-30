@@ -153,7 +153,7 @@ main {
 
 /* Nothing to switch on, so the control says so by not offering itself. */
 .control:disabled {
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .frame.running .control:hover {
@@ -214,7 +214,7 @@ main {
   stroke: color-mix(in srgb, var(--ink) 45%, var(--off));
 }
 
-.control:active .power {
+.control:active:not(:disabled) .power {
   scale: 0.96;
 }
 
@@ -424,12 +424,11 @@ h2 {
 
 /* The verdict leads the list: the answer first, the readings that justify it
    underneath. */
-/* The verdict is a sentence and the action is two words, so the sentence takes
-   the room that is left and the action keeps its own. The other way round, an
-   `auto` headline refuses to wrap and runs straight through the action. */
+/* The verdict is a sentence of unbounded length, so it gets the row to itself.
+   Sharing one with the access control meant two variable widths competing, and
+   whichever lost was crushed into a column three words wide. */
 .verdict {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
   padding: 9px 12px;
   color: var(--warn);
 }
@@ -440,6 +439,13 @@ h2 {
   gap: 9px;
   min-width: 0;
   font-weight: 600;
+}
+
+/* Short enough to fit, and the row's title carries the rest. */
+.verdict .said {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .linkish {
@@ -738,14 +744,9 @@ button:focus-visible {
   opacity: 0.55;
 }
 
-.status,
-.problem {
+.status {
   margin: 0;
   color: var(--ink-quiet);
-}
-
-.problem {
-  color: var(--warn);
 }
 
 pre {
@@ -793,7 +794,82 @@ pre {
   }
 }
 
+/* Notifications sit over the page rather than in it, so a failure never moves
+   the control someone was reaching for. Fixed to the bottom, because the window
+   scrolls and an alert that scrolls away is not an alert. */
+.notes {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-inline: auto;
+  max-width: 528px;
+  pointer-events: none;
+}
+
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 10px 9px 13px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 24px -14px rgb(0 0 0 / 0.55);
+  pointer-events: auto;
+  animation: arrive 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.note.error {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  color: var(--ink);
+}
+
+.note.success {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--ink);
+}
+
+/* Long enough to say what happened, so it wraps rather than being cut off. */
+.note .what {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.note .close {
+  flex: none;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-quiet);
+  font: inherit;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.note .close:hover {
+  color: var(--ink);
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .note {
+    animation: none;
+  }
+
   .frame.running::before,
   .frame.running .power {
     animation: none;

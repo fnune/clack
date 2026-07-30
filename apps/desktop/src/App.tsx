@@ -8,6 +8,7 @@ import {
   type Settings,
   type Status,
 } from "./ipc";
+import { Notifications, useNotifications } from "./notifications";
 
 const EMPTY_STATUS: Status = { running: false, failure: null };
 
@@ -38,45 +39,76 @@ function pangoFamily(font: string): string {
   return family === "" ? "sans-serif" : family;
 }
 
-/// The one thing someone opening this window wants to know: is Clack set up,
-/// and is there anything for them to do about it?
-function verdict(diagnosis: Diagnosis | null): { headline: string; ready: boolean } {
-  if (diagnosis === null) return { headline: "Checking", ready: false };
-  if (diagnosis.usable) return { headline: "Ready", ready: true };
+/// The one thing someone opening this window wants to know: is Clack set up, and
+/// is there anything for them to do about it? The headline is short enough for one
+/// line of a narrow window; the reasoning is in the title, for anyone who wants
+/// it.
+function verdict(diagnosis: Diagnosis | null): Verdict {
+  if (diagnosis === null) {
+    return { headline: "Checking", detail: "Working out what Clack can do here.", ready: false };
+  }
+
+  if (diagnosis.usable) {
+    return {
+      headline: "Ready",
+      detail: "Clack can read your keyboard and draw the overlay.",
+      ready: true,
+    };
+  }
 
   if (diagnosis.keyboards === 0) {
+    return diagnosis.ruleInstalled
+      ? {
+          headline: "No keyboard to read",
+          detail:
+            "Access is allowed, but no keyboard is readable yet. Log out and back in, or plug one in.",
+          ready: false,
+        }
+      : {
+          headline: "Permission needed",
+          detail: "Clack needs permission to read your keyboard.",
+          ready: false,
+        };
+  }
+
+  if (!diagnosis.layerShell) {
     return {
-      headline: diagnosis.ruleInstalled
-        ? "Clack cannot read any keyboard. Log out and back in, or plug one in."
-        : "Clack needs permission to read your keyboard",
+      headline: "No overlay here",
+      detail:
+        "This desktop has no layer shell, so the overlay cannot be drawn above other windows.",
       ready: false,
     };
   }
 
-  if (!diagnosis.layerShell) {
-    return { headline: "This desktop cannot show the overlay", ready: false };
-  }
-
-  return { headline: "This desktop did not provide a keymap", ready: false };
+  return {
+    headline: "No layout shared",
+    detail: "This desktop did not share its keyboard layout, so keys cannot be named.",
+    ready: false,
+  };
 }
+
+type Verdict = { headline: string; detail: string; ready: boolean };
 
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [status, setStatus] = useState<Status>(EMPTY_STATUS);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { notes, notify, dismiss } = useNotifications();
   const [backup, setBackup] = useState<string | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
 
-  const attempt = useCallback(async (action: () => Promise<void>) => {
-    try {
-      setProblem(null);
-      await action();
-    } catch (error) {
-      setProblem(error instanceof Error ? error.message : String(error));
-    }
-  }, []);
+  const attempt = useCallback(
+    async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        notify(error instanceof Error ? error.message : String(error), "error");
+      }
+    },
+    [notify],
+  );
 
   useEffect(() => {
     void attempt(async () => {
@@ -95,7 +127,7 @@ export function App() {
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
       setBackup(await api.settingsBackupPath());
-    });
+    }).finally(() => setLoading(false));
   }, [attempt]);
 
   useEffect(() => {
@@ -107,10 +139,17 @@ export function App() {
     };
   }, []);
 
+  /// A session can fail long after the click that started it, so its failure
+  /// arrives with a status event rather than from a call anyone is awaiting.
+  useEffect(() => {
+    if (status.failure !== null) notify(status.failure, "error");
+  }, [status.failure, notify]);
+
   if (settings === null) {
     return (
       <main>
-        <p className={problem === null ? "status" : "problem"}>{problem ?? "Loading."}</p>
+        <p className="status">{loading ? "Loading." : "Clack could not read its settings."}</p>
+        <Notifications notes={notes} onDismiss={dismiss} />
       </main>
     );
   }
@@ -134,11 +173,10 @@ export function App() {
       setStatus(status.running ? await api.stop() : await api.start(settings));
     });
 
+  const said = verdict(diagnosis);
+
   return (
     <main>
-      {problem !== null && <p className="problem">{problem}</p>}
-      {status.failure !== null && <p className="problem">{status.failure}</p>}
-
       <div className={status.running ? "frame running" : "frame"}>
         <button
           className="control"
@@ -147,11 +185,7 @@ export function App() {
           aria-checked={status.running}
           aria-label="Show keystrokes"
           disabled={diagnosis !== null && !diagnosis.usable && !status.running}
-          title={
-            diagnosis !== null && !diagnosis.usable
-              ? verdict(diagnosis).headline
-              : "Show keystrokes"
-          }
+          title={diagnosis !== null && !diagnosis.usable ? said.detail : "Show keystrokes"}
           onClick={toggle}
         >
           <PowerRing />
@@ -161,15 +195,19 @@ export function App() {
       <section>
         <h2>Status</h2>
         <div className="list">
-          <div className={verdict(diagnosis).ready ? "row verdict ready" : "row verdict"}>
+          <div className={said.ready ? "row verdict ready" : "row verdict"} title={said.detail}>
             <span className="headline">
               <span className="mark" aria-hidden="true" />
-              {verdict(diagnosis).headline}
+              <span className="said">{said.headline}</span>
             </span>
-            <span className="access">
+          </div>
+
+          <div className="row">
+            <span>Keyboard access</span>
+            <span className="value access">
               {diagnosis?.ruleInstalled === true ? (
                 <>
-                  Keyboard access allowed
+                  Allowed
                   <button
                     className="linkish"
                     type="button"
@@ -184,19 +222,22 @@ export function App() {
                   </button>
                 </>
               ) : (
-                <button
-                  className="linkish"
-                  type="button"
-                  disabled={diagnosis === null}
-                  title={diagnosis?.rulePath}
-                  onClick={() =>
-                    void attempt(async () => {
-                      setDiagnosis(await api.grantAccess());
-                    })
-                  }
-                >
-                  Allow keyboard access
-                </button>
+                <>
+                  Not allowed
+                  <button
+                    className="linkish"
+                    type="button"
+                    disabled={diagnosis === null}
+                    title={diagnosis?.rulePath}
+                    onClick={() =>
+                      void attempt(async () => {
+                        setDiagnosis(await api.grantAccess());
+                      })
+                    }
+                  >
+                    Allow
+                  </button>
+                </>
               )}
             </span>
           </div>
@@ -366,6 +407,7 @@ export function App() {
                   setConfirmingReset(false);
                   setSettings(defaults);
                   setPreview(await api.preview(defaults));
+                  notify("Settings reset to defaults.", "success");
                 })
               }
             >
@@ -378,6 +420,8 @@ export function App() {
           </button>
         )}
       </footer>
+
+      <Notifications notes={notes} onDismiss={dismiss} />
     </main>
   );
 }
