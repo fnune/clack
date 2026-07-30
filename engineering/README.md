@@ -18,7 +18,7 @@ Clack is built to feel calm. Simple, clear, predictable, respectful of user agen
 - Quiet defaults. Off-screen when idle, no animation for its own sake, no attention-seeking motion. A tool for screencasts must not become the thing the viewer watches.
 - Every interaction is calm. No dark patterns. No shame buttons ("Accept" / "Maybe later"). No ads. No nagging. No update prompts, no telemetry, no first-run tour.
 - Respect user agency. The user is in control. We do not coerce, guilt, or hide options. Every default is discoverable and overridable from the CLI and the config file.
-- The user can always stop it. A pause binding and a clean exit path are load-bearing features, not extras.
+- The user can always stop it. Pausing and a clean exit path are load-bearing features, not extras. `Handle` carries pause, resume and stop, which is what the desktop app's switch is; the command line exits on Ctrl+C.
 - Failures are shown calmly. Error messages are accurate, plain, and never blame the user. When Clack cannot start, it says which of the two things is missing (device access or layer-shell) and what to do about it.
 - A configuration front-end configures, it does not supervise. No dashboard of what you typed. No history view. See the privacy section.
 
@@ -44,7 +44,7 @@ The book is object-oriented and .NET-flavoured. The principles carry to Rust; th
 
 - Three layers: input, domain, render. Input reads devices and produces raw key events. Domain holds the state machine that turns those into displayable text. Render paints it.
 - Each layer declares the abstractions it consumes. The trait belongs to the consumer, not to the implementer.
-- The domain declares `KeySource`, `Keymap`, and `Clock`. The input layer imports and implements them. The domain does not depend on the input layer, does not link libinput, and does not know that evdev exists.
+- The domain declares `KeySource`, `Translator`, `Surface`, and `Clock`. The input, keymap and render layers import and implement them. The domain does not depend on the input layer, does not link libinput, and does not know that evdev exists.
 - The domain declares what it hands to rendering: a display model of styled runs, not a Cairo context. The render layer imports that and decides how to paint it. Swapping the text stack is then a render-layer change.
 - Counter-pattern to reject: input depending on domain depending on render, or the reverse. That is naive layering, not Dependency Inversion.
 - This is the Dependency Inversion Principle from SOLID, applied at the module boundary.
@@ -72,9 +72,9 @@ Rust's type system is the tool the TypeScript rules were reaching for. Use it, a
 
 ### Dependency hygiene
 
-- Start with the platform. The standard library, and the system libraries we already link, cover more than the crate ecosystem suggests. We link libinput, libudev, and libxkbcommon because there is no substitute; that is a reason to use them fully, not a reason to add more.
+- Start with the platform. The standard library, and the system libraries we already link, cover more than the crate ecosystem suggests. We link libxkbcommon, cairo, and pango because there is no substitute; that is a reason to use them fully, not a reason to add more. Devices are read through the `evdev` crate rather than libinput, for the reasons in [`DECISIONS.md`](../DECISIONS.md).
 - Vet every dependency: can std or an existing dependency do it; size of the transitive tree; active maintenance; number of `unsafe` blocks; whether it pulls in a runtime we do not otherwise need.
-- No async runtime unless something forces it. Clack is one process reacting to two file descriptors. A poll loop over the libinput fd and the Wayland fd is smaller, more predictable, and easier to reason about than a scheduler. Pulling in Tokio for that is a dependency budget spent on nothing.
+- No async runtime unless something forces it. Clack reacts to key events and to the Wayland socket. A blocking reader thread per keyboard feeding a channel, drained by the loop that owns the surface, is smaller, more predictable, and easier to reason about than a scheduler. Pulling in Tokio for that is a dependency budget spent on nothing.
 - Prefer governance-neutral dependencies over OSS that exists to feed a vendor's hosted SaaS. In that pattern the roadmap follows the vendor's revenue, not user need: the best features land in the paid tier, the self-hosting path degrades, telemetry and login prompts creep into the CLI, and at the extreme the licence is rewritten to forbid competing hosted offerings. The integration cost falls on us either way, whether we accept the drift or migrate to a fork. Use such dependencies only when no governance-neutral alternative exists; document the choice in the PR.
 - If under 50 lines, write it. Do not depend.
 - Vendor utilities under 100 lines with attribution and the original license.
@@ -109,9 +109,9 @@ The baselines below are the floor, not the ceiling.
 
 ### Local checks before pushing
 
-- Run cheap checks locally: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and the tests that exercise the touched code.
+- Run cheap checks locally: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and the tests that exercise the touched code. `just check` is all of what CI runs.
 - Run the `stripping-code-comments` skill over the diff before committing.
-- Choose checks based on what changed. Domain-only changes need `cargo test -p clack-domain` and nothing more. Touching the input or render layer means running the integration tests too.
+- Choose checks based on what changed. Domain-only changes need `cargo test -p clack-core` and nothing more. Touching the input or render layer means running the integration tests too.
 - `cargo deny check` before any dependency change.
 
 ### Git conventions
@@ -146,7 +146,7 @@ The baselines below are the floor, not the ceiling.
 - Cargo workspace split along the architectural layers, so the layering is enforced by the dependency graph rather than by review.
 - rustfmt with default settings. Formatting is not a design discussion.
 - Clippy with `-D warnings` and the lint set above.
-- Testing: the built-in test harness is the default. `cargo nextest` for the run-time gain on larger suites, `insta` for snapshot assertions over the display model, which is where snapshot testing genuinely pays.
+- Testing: the built-in test harness is the default, with `cargo nextest` available from the flake for the run-time gain on larger suites.
 - Dependency updates via [Renovate](https://docs.renovatebot.com/). Weekly batch, 7 day minimum release age, no auto-merge. Security advisories handled same-day.
 
 ### TypeScript, in the desktop app

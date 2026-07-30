@@ -17,6 +17,20 @@ desktops.
 There is a desktop app with a tray icon and a single switch, and a command line program. Both do
 the same thing and share the same settings.
 
+## What Clack can see
+
+Clack reads every keystroke on the machine, including keystrokes typed into other applications,
+including passwords. There is no way to show your keystrokes without that ability.
+
+What it does with it:
+
+- Nothing is written to disk. No history, no cache.
+- No network code exists in this project.
+- No keystroke enters a log, at any level, in any build.
+- Only devices reporting as keyboards are opened, read-only, never grabbed.
+
+The overlay is the indicator that Clack is running. Stop it before you type a password.
+
 ## Install
 
 ### The desktop app
@@ -116,20 +130,6 @@ decorations = false
 Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a
 silent no-op, so a typo tells you instead of quietly doing nothing.
 
-## What Clack can see
-
-Clack reads every keystroke on the machine, including keystrokes typed into other applications,
-including passwords. There is no way to show your keystrokes without that ability.
-
-What it does with it:
-
-- Nothing is written to disk. No history, no cache.
-- No network code exists in this project.
-- No keystroke enters a log, at any level, in any build.
-- Only devices reporting as keyboards are opened, read-only, never grabbed.
-
-The overlay is the indicator that Clack is running. Stop it before you type a password.
-
 ## As a library
 
 Both programs are consumers of the `clack` crate. The overlay is one implementation of `Surface`,
@@ -175,7 +175,7 @@ so the overlay sits above other windows rather than behind them.
 Developed on KDE Plasma. It should work on any compositor implementing layer shell, which is most
 of them apart from GNOME's Mutter.
 
-[`DESIGN.md`](DESIGN.md) has the long version: what the alternatives were, why each one fails,
+[`DECISIONS.md`](DECISIONS.md) has the long version: what the alternatives were, why each one fails,
 and the compositor behaviour that shaped the drawing code.
 
 ## Development
