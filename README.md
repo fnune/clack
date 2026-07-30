@@ -3,6 +3,9 @@
 Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland desktops,
 where [screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot go.
 
+![The Clack window above the overlay it draws, showing the keys just
+typed](assets/clack.png)
+
 There is a desktop app with a tray icon and a single switch, and a command line program. Both do
 the same thing and share the same settings.
 
