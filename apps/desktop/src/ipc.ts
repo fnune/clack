@@ -61,6 +61,7 @@ export type Appearance = {
 };
 
 const STATUS_EVENT = "clack://status";
+const APPEARANCE_EVENT = "clack://appearance";
 
 class ShapeError extends Error {
   constructor(field: string, value: unknown) {
@@ -233,5 +234,9 @@ export const api = {
   onStatus: (handle: (status: Status) => void) =>
     listen(STATUS_EVENT, (event) => {
       handle(parseStatus(event.payload));
+    }),
+  onAppearance: (handle: (appearance: Appearance) => void) =>
+    listen(APPEARANCE_EVENT, (event) => {
+      handle(parseAppearance(event.payload));
     }),
 };

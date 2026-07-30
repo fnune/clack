@@ -17,6 +17,7 @@ use crate::logo::Mood;
 use crate::supervisor::Supervisor;
 
 const STATUS_EVENT: &str = "clack://status";
+const APPEARANCE_EVENT: &str = "clack://appearance";
 
 #[derive(Default)]
 pub struct AppState {
@@ -75,6 +76,15 @@ pub fn run() {
             });
 
             tray::install(app.handle())?;
+
+            appearance::watch({
+                let app = app.handle().clone();
+                move |appearance| {
+                    let dark = appearance.dark.unwrap_or(true);
+                    let _ = app.run_on_main_thread(move || tray::shade(dark));
+                    let _ = app.emit(APPEARANCE_EVENT, appearance);
+                }
+            });
 
             if settings.desktop.start_overlay {
                 let handle = app.handle().clone();

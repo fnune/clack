@@ -4,15 +4,16 @@
 use std::collections::HashMap;
 
 use serde::Serialize;
-use zbus::blocking::Connection;
+use zbus::blocking::{Connection, MessageIterator};
 use zbus::zvariant::OwnedValue;
 
 const PORTAL: &str = "org.freedesktop.portal.Desktop";
 const PATH: &str = "/org/freedesktop/portal/desktop";
 const SETTINGS: &str = "org.freedesktop.portal.Settings";
 const NAMESPACE: &str = "org.freedesktop.appearance";
+const CHANGED: &str = "SettingChanged";
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Appearance {
     /// The desktop's accent colour as `#rrggbb`, when it has one.
@@ -33,6 +34,61 @@ pub fn read() -> Appearance {
         accent: settings.get("accent-color").and_then(as_hex),
         dark: settings.get("color-scheme").and_then(as_dark),
     }
+}
+
+/// Calls back whenever the desktop changes how it looks, on a thread of its own.
+///
+/// A palette is not read once and kept: someone who switches to dark at sunset is
+/// left with a window dressed for the morning and a tray icon in a colour the
+/// panel no longer paints with. The portal says when it changes, so Clack listens
+/// rather than asking again and again.
+pub fn watch(changed: impl Fn(Appearance) + Send + 'static) {
+    std::thread::spawn(move || {
+        let Some(signals) = subscribe() else {
+            eprintln!("clack-desktop: the desktop will not say when it changes appearance");
+            return;
+        };
+
+        let mut appearance = read();
+
+        for signal in signals.flatten() {
+            let Ok((namespace, key, value)) =
+                signal.body().deserialize::<(String, String, OwnedValue)>()
+            else {
+                continue;
+            };
+
+            if namespace != NAMESPACE {
+                continue;
+            }
+
+            // The signal carries the new value. Asking the portal again instead
+            // races it, and answers with the setting that has just been replaced.
+            match key.as_str() {
+                "color-scheme" => appearance.dark = as_dark(&value),
+                "accent-color" => appearance.accent = as_hex(&value),
+                _ => continue,
+            }
+
+            changed(appearance.clone());
+        }
+    });
+}
+
+fn subscribe() -> Option<MessageIterator> {
+    let rule = zbus::MatchRule::builder()
+        .msg_type(zbus::message::Type::Signal)
+        .sender(PORTAL)
+        .ok()?
+        .path(PATH)
+        .ok()?
+        .interface(SETTINGS)
+        .ok()?
+        .member(CHANGED)
+        .ok()?
+        .build();
+
+    MessageIterator::for_match_rule(rule, &Connection::session().ok()?, None).ok()
 }
 
 fn query() -> Option<HashMap<String, OwnedValue>> {

@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  type Appearance,
   api,
   type Desktop,
   type Diagnosis,
@@ -165,6 +166,15 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
 
 type Verdict = { headline: string; detail: string; ready: boolean };
 
+function dress(appearance: Appearance) {
+  if (appearance.accent !== null) {
+    document.documentElement.style.setProperty("--accent", appearance.accent);
+  }
+  if (appearance.dark !== null) {
+    document.documentElement.dataset.theme = appearance.dark ? "dark" : "light";
+  }
+}
+
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [status, setStatus] = useState<Status>(EMPTY_STATUS);
@@ -189,14 +199,7 @@ export function App() {
 
   useEffect(() => {
     void attempt(async () => {
-      const appearance = await api.appearance();
-
-      if (appearance.accent !== null) {
-        document.documentElement.style.setProperty("--accent", appearance.accent);
-      }
-      if (appearance.dark !== null) {
-        document.documentElement.dataset.theme = appearance.dark ? "dark" : "light";
-      }
+      dress(await api.appearance());
 
       const loaded = await api.loadSettings();
       setSettings(loaded);
@@ -217,6 +220,17 @@ export function App() {
       document.documentElement.dataset.decorated = String(settings.desktop.decorations);
     }
   }, [settings]);
+
+  /// The desktop can be repainted while Clack is open, and a window still wearing
+  /// the palette it started with is the one thing on screen that did not follow.
+  useEffect(() => {
+    const subscription = api.onAppearance(dress);
+    return () => {
+      void subscription.then((unlisten) => {
+        unlisten();
+      });
+    };
+  }, []);
 
   useEffect(() => {
     const subscription = api.onStatus(setStatus);

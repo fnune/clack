@@ -30,6 +30,8 @@ thread_local! {
 struct Tray {
     indicator: AppIndicator,
     toggle: gtk::MenuItem,
+    mood: Mood,
+    ink: Ink,
     /// The indicator draws the menu but does not own it.
     _menu: gtk::Menu,
 }
@@ -42,14 +44,25 @@ pub enum TrayError {
     Home(#[from] std::io::Error),
 }
 
-impl Mood {
-    const fn icon(self) -> &'static str {
-        match self {
-            Self::Idle => "clack-idle",
-            Self::Showing => "clack-showing",
-            Self::Stuck => "clack-stuck",
-        }
-    }
+/// One icon per state per colour. The colour is in the name because changing the
+/// name is the only thing a panel treats as a new icon: rewriting the file it
+/// already read leaves it drawing what it read the first time.
+fn icon(mood: Mood, ink: Ink) -> String {
+    let state = match mood {
+        Mood::Idle => "idle",
+        Mood::Showing => "showing",
+        Mood::Stuck => "stuck",
+    };
+    let shade = match ink {
+        Ink::Light => "light",
+        Ink::Dark => "dark",
+    };
+
+    format!("clack-{state}-{shade}")
+}
+
+fn ink(dark: bool) -> Ink {
+    if dark { Ink::Light } else { Ink::Dark }
 }
 
 /// Draws every state up front, so that changing state later is a name and nothing
@@ -58,19 +71,20 @@ pub fn install(app: &AppHandle) -> Result<(), TrayError> {
     let home = home()?;
     std::fs::create_dir_all(&home)?;
 
-    let ink = if crate::appearance::read().dark.unwrap_or(true) {
-        Ink::Light
-    } else {
-        Ink::Dark
-    };
-
     for mood in [Mood::Idle, Mood::Showing, Mood::Stuck] {
-        let pixels = logo::draw(mood, SIZE, ink)?;
-        logo::write(&home.join(format!("{}.png", mood.icon())), &pixels, SIZE)?;
+        for shade in [Ink::Light, Ink::Dark] {
+            let pixels = logo::draw(mood, SIZE, shade)?;
+            logo::write(
+                &home.join(format!("{}.png", icon(mood, shade))),
+                &pixels,
+                SIZE,
+            )?;
+        }
     }
 
+    let ink = ink(crate::appearance::read().dark.unwrap_or(true));
     let mut indicator =
-        AppIndicator::with_path("clack", Mood::Idle.icon(), &home.to_string_lossy());
+        AppIndicator::with_path("clack", &icon(Mood::Idle, ink), &home.to_string_lossy());
     indicator.set_status(AppIndicatorStatus::Active);
 
     let mut menu = gtk::Menu::new();
@@ -103,6 +117,8 @@ pub fn install(app: &AppHandle) -> Result<(), TrayError> {
         *slot = Some(Tray {
             indicator,
             toggle,
+            mood: Mood::Idle,
+            ink,
             _menu: menu,
         });
     });
@@ -118,8 +134,23 @@ pub fn wear(mood: Mood, running: bool) {
             return;
         };
 
-        tray.indicator.set_icon_full(mood.icon(), "Clack");
+        tray.mood = mood;
+        tray.indicator.set_icon_full(&icon(mood, tray.ink), "Clack");
         tray.toggle.set_label(crate::label(running));
+    });
+}
+
+/// Follows the desktop from light to dark and back. The mark carries no colour of
+/// its own, and the one the panel paints with changes under it.
+pub fn shade(dark: bool) {
+    TRAY.with_borrow_mut(|slot| {
+        let Some(tray) = slot.as_mut() else {
+            return;
+        };
+
+        tray.ink = ink(dark);
+        tray.indicator
+            .set_icon_full(&icon(tray.mood, tray.ink), "Clack");
     });
 }
 
