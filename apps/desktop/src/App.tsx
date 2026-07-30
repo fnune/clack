@@ -267,11 +267,11 @@ export function App() {
   const stuck = diagnosis !== null && !diagnosis.usable;
 
   return (
-    <main>
+    <>
       {!settings.desktop.decorations && (
         // The window has no title bar of its own to carry the name, or to be
-        // taken hold of. Kept to one thin line so the switch is still the first
-        // thing under it.
+        // taken hold of. Outside `main` so it reaches the window's own edges:
+        // anywhere along the top can be grabbed, not only the content column.
         <header data-tauri-drag-region>
           <span className="wordmark" data-tauri-drag-region>
             Clack
@@ -288,240 +288,242 @@ export function App() {
         </header>
       )}
 
-      <div className={status.running ? "frame running" : "frame"}>
-        <button
-          className="control"
-          type="button"
-          role="switch"
-          aria-checked={status.running}
-          aria-label="Show keystrokes"
-          disabled={stuck && !status.running}
-          title={stuck ? said.detail : "Show keystrokes"}
-          onClick={toggle}
-        >
-          {stuck && !status.running ? <WarningSign /> : <PowerRing />}
-        </button>
-      </div>
+      <main>
+        <div className={status.running ? "frame running" : "frame"}>
+          <button
+            className="control"
+            type="button"
+            role="switch"
+            aria-checked={status.running}
+            aria-label="Show keystrokes"
+            disabled={stuck && !status.running}
+            title={stuck ? said.detail : "Show keystrokes"}
+            onClick={toggle}
+          >
+            {stuck && !status.running ? <WarningSign /> : <PowerRing />}
+          </button>
+        </div>
 
-      <section>
-        <h2>Status</h2>
-        <div className="list">
-          <div className={said.ready ? "row verdict ready" : "row verdict"} title={said.detail}>
-            <span className="headline">
-              <span className="mark" aria-hidden="true" />
-              <span className="said">{said.headline}</span>
-            </span>
-            <button
-              className="linkish"
-              type="button"
-              disabled={diagnosis === null}
-              title={
-                diagnosis?.ruleInstalled === true
-                  ? "Takes Clack's permission to read your keyboard away again."
-                  : "Asks for your password once, so Clack may read your keyboard."
-              }
-              onClick={() =>
-                void attempt(async () => {
-                  setDiagnosis(
-                    diagnosis?.ruleInstalled === true
-                      ? await api.revokeAccess()
-                      : await api.grantAccess(),
-                  );
-                })
-              }
-            >
-              {diagnosis?.ruleInstalled === true ? "Revoke access" : "Allow access"}
-            </button>
+        <section>
+          <h2>Status</h2>
+          <div className="list">
+            <div className={said.ready ? "row verdict ready" : "row verdict"} title={said.detail}>
+              <span className="headline">
+                <span className="mark" aria-hidden="true" />
+                <span className="said">{said.headline}</span>
+              </span>
+              <button
+                className="linkish"
+                type="button"
+                disabled={diagnosis === null}
+                title={
+                  diagnosis?.ruleInstalled === true
+                    ? "Takes Clack's permission to read your keyboard away again."
+                    : "Asks for your password once, so Clack may read your keyboard."
+                }
+                onClick={() =>
+                  void attempt(async () => {
+                    setDiagnosis(
+                      diagnosis?.ruleInstalled === true
+                        ? await api.revokeAccess()
+                        : await api.grantAccess(),
+                    );
+                  })
+                }
+              >
+                {diagnosis?.ruleInstalled === true ? "Revoke access" : "Allow access"}
+              </button>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section>
-        <h2>Preview</h2>
-        <div className="preview">
-          <span className="pill" style={{ fontFamily: pangoFamily(settings.overlay.font) }}>
-            {preview?.runs.map((run, index) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: a run has no identity beyond where it sits in the line
-              <span className={run.kind} key={`${run.kind}-${index}-${run.text}`}>
-                {run.text}
-              </span>
-            ))}
-          </span>
-        </div>
-      </section>
-
-      <section>
-        <h2>Appearance</h2>
-        <div className="list">
-          <label className="row">
-            <span>Font</span>
-            <span className="value">
-              <input
-                type="text"
-                value={settings.overlay.font}
-                onChange={(event) => editOverlay({ font: event.target.value })}
-              />
-            </span>
-          </label>
-
-          <div className="row">
-            <span>Edge</span>
-            <span className="value">
-              <span className="radios">
-                {(["bottom", "top"] as const).map((edge) => (
-                  <label key={edge}>
-                    <input
-                      type="radio"
-                      name="anchor"
-                      checked={settings.overlay.anchor === edge}
-                      onChange={() => editOverlay({ anchor: edge })}
-                    />
-                    {edge === "top" ? "Top" : "Bottom"}
-                  </label>
-                ))}
-              </span>
+        <section>
+          <h2>Preview</h2>
+          <div className="preview">
+            <span className="pill" style={{ fontFamily: pangoFamily(settings.overlay.font) }}>
+              {preview?.runs.map((run, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: a run has no identity beyond where it sits in the line
+                <span className={run.kind} key={`${run.kind}-${index}-${run.text}`}>
+                  {run.text}
+                </span>
+              ))}
             </span>
           </div>
+        </section>
 
-          <label className="row" htmlFor="margin">
-            <span>Distance from edge</span>
-            <span className="value">
-              <NumberField
-                id="margin"
-                value={settings.overlay.margin}
-                unit="px"
-                min={0}
-                max={4000}
-                onCommit={(margin) => editOverlay({ margin })}
-              />
-            </span>
-          </label>
-
-          <label className="row" htmlFor="timeout">
-            <span>Time on screen</span>
-            <span className="value">
-              <NumberField
-                id="timeout"
-                value={settings.overlay.timeout_seconds}
-                unit="s"
-                min={0.2}
-                max={30}
-                step={0.1}
-                onCommit={(timeout_seconds) => editOverlay({ timeout_seconds })}
-              />
-            </span>
-          </label>
-        </div>
-      </section>
-
-      <section>
-        <h2>Symbols</h2>
-        <div className="list">
-          <label className="row">
-            <span>Draw keys as symbols</span>
-            <span className="value">
-              <span className="toggle">
-                <input
-                  type="checkbox"
-                  checked={settings.overlay.symbols}
-                  onChange={(event) => editOverlay({ symbols: event.target.checked })}
-                />
-              </span>
-            </span>
-          </label>
-
-          {preview?.symbols.map((symbol) => (
-            <label className="row" key={symbol.keysym}>
-              <span>{symbol.label}</span>
-              <span className="value symbol">
+        <section>
+          <h2>Appearance</h2>
+          <div className="list">
+            <label className="row">
+              <span>Font</span>
+              <span className="value">
                 <input
                   type="text"
-                  value={settings.overlay.symbol_overrides[symbol.keysym] ?? symbol.glyph}
-                  onChange={(event) =>
-                    editOverlay({
-                      symbol_overrides: {
-                        ...settings.overlay.symbol_overrides,
-                        [symbol.keysym]: event.target.value,
-                      },
-                    })
-                  }
+                  value={settings.overlay.font}
+                  onChange={(event) => editOverlay({ font: event.target.value })}
                 />
               </span>
             </label>
-          ))}
-        </div>
-      </section>
 
-      <section>
-        <h2>On launch</h2>
-        <div className="list">
-          <label className="row check">
-            <span>Start in the tray, without this window</span>
-            <input
-              type="checkbox"
-              checked={settings.desktop.start_hidden}
-              onChange={(event) => editDesktop({ start_hidden: event.target.checked })}
-            />
-          </label>
+            <div className="row">
+              <span>Edge</span>
+              <span className="value">
+                <span className="radios">
+                  {(["bottom", "top"] as const).map((edge) => (
+                    <label key={edge}>
+                      <input
+                        type="radio"
+                        name="anchor"
+                        checked={settings.overlay.anchor === edge}
+                        onChange={() => editOverlay({ anchor: edge })}
+                      />
+                      {edge === "top" ? "Top" : "Bottom"}
+                    </label>
+                  ))}
+                </span>
+              </span>
+            </div>
 
-          <label className="row check">
-            <span>Start showing keystrokes straight away</span>
-            <input
-              type="checkbox"
-              checked={settings.desktop.start_overlay}
-              onChange={(event) => editDesktop({ start_overlay: event.target.checked })}
-            />
-          </label>
-        </div>
-      </section>
+            <label className="row" htmlFor="margin">
+              <span>Distance from edge</span>
+              <span className="value">
+                <NumberField
+                  id="margin"
+                  value={settings.overlay.margin}
+                  unit="px"
+                  min={0}
+                  max={4000}
+                  onCommit={(margin) => editOverlay({ margin })}
+                />
+              </span>
+            </label>
 
-      <section>
-        <h2>Window</h2>
-        <div className="list">
-          <label className="row check">
-            <span>Use this desktop's title bar</span>
-            <input
-              type="checkbox"
-              checked={settings.desktop.decorations}
-              onChange={(event) => editDesktop({ decorations: event.target.checked })}
-            />
-          </label>
-        </div>
-      </section>
-
-      <footer>
-        {confirmingReset ? (
-          <div className="confirm">
-            <p className="ask" title={askedInFull(backup)}>
-              Reset everything? A copy is kept at {backup ?? "a backup file"}
-            </p>
-            <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
-              Cancel
-            </button>
-            <button
-              className="linkish destructive"
-              type="button"
-              onClick={() =>
-                void attempt(async () => {
-                  const defaults = await api.resetSettings();
-                  setConfirmingReset(false);
-                  setSettings(defaults);
-                  setPreview(await api.preview(defaults));
-                  notify("Settings reset to defaults.", "success");
-                })
-              }
-            >
-              Reset
-            </button>
+            <label className="row" htmlFor="timeout">
+              <span>Time on screen</span>
+              <span className="value">
+                <NumberField
+                  id="timeout"
+                  value={settings.overlay.timeout_seconds}
+                  unit="s"
+                  min={0.2}
+                  max={30}
+                  step={0.1}
+                  onCommit={(timeout_seconds) => editOverlay({ timeout_seconds })}
+                />
+              </span>
+            </label>
           </div>
-        ) : (
-          <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
-            Reset to defaults
-          </button>
-        )}
-      </footer>
+        </section>
+
+        <section>
+          <h2>Symbols</h2>
+          <div className="list">
+            <label className="row">
+              <span>Draw keys as symbols</span>
+              <span className="value">
+                <span className="toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.overlay.symbols}
+                    onChange={(event) => editOverlay({ symbols: event.target.checked })}
+                  />
+                </span>
+              </span>
+            </label>
+
+            {preview?.symbols.map((symbol) => (
+              <label className="row" key={symbol.keysym}>
+                <span>{symbol.label}</span>
+                <span className="value symbol">
+                  <input
+                    type="text"
+                    value={settings.overlay.symbol_overrides[symbol.keysym] ?? symbol.glyph}
+                    onChange={(event) =>
+                      editOverlay({
+                        symbol_overrides: {
+                          ...settings.overlay.symbol_overrides,
+                          [symbol.keysym]: event.target.value,
+                        },
+                      })
+                    }
+                  />
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2>On launch</h2>
+          <div className="list">
+            <label className="row check">
+              <span>Start in the tray, without this window</span>
+              <input
+                type="checkbox"
+                checked={settings.desktop.start_hidden}
+                onChange={(event) => editDesktop({ start_hidden: event.target.checked })}
+              />
+            </label>
+
+            <label className="row check">
+              <span>Start showing keystrokes straight away</span>
+              <input
+                type="checkbox"
+                checked={settings.desktop.start_overlay}
+                onChange={(event) => editDesktop({ start_overlay: event.target.checked })}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section>
+          <h2>Window</h2>
+          <div className="list">
+            <label className="row check">
+              <span>Use this desktop's title bar</span>
+              <input
+                type="checkbox"
+                checked={settings.desktop.decorations}
+                onChange={(event) => editDesktop({ decorations: event.target.checked })}
+              />
+            </label>
+          </div>
+        </section>
+
+        <footer>
+          {confirmingReset ? (
+            <div className="confirm">
+              <p className="ask" title={askedInFull(backup)}>
+                Reset everything? A copy is kept at {backup ?? "a backup file"}
+              </p>
+              <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
+                Cancel
+              </button>
+              <button
+                className="linkish destructive"
+                type="button"
+                onClick={() =>
+                  void attempt(async () => {
+                    const defaults = await api.resetSettings();
+                    setConfirmingReset(false);
+                    setSettings(defaults);
+                    setPreview(await api.preview(defaults));
+                    notify("Settings reset to defaults.", "success");
+                  })
+                }
+              >
+                Reset
+              </button>
+            </div>
+          ) : (
+            <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
+              Reset to defaults
+            </button>
+          )}
+        </footer>
+      </main>
 
       <Notifications notes={notes} onDismiss={dismiss} />
-    </main>
+    </>
   );
 }
