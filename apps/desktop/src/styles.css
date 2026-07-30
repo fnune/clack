@@ -96,6 +96,30 @@ body::before {
   border-radius: 0;
 }
 
+/* WebKit draws an overlay scrollbar that is thin until the pointer comes near it
+   and then widens, so the window changed shape under the mouse. Styling it at all
+   opts out of that: one width, always, and a thumb held off the window's edge by a
+   transparent border so it sits inside the rounded corner rather than across it. */
+::-webkit-scrollbar {
+  width: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-color: var(--off);
+  background-clip: padding-box;
+  transition: background-color 140ms ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-quiet);
+}
+
 /* One line: the name, and the way out. Flush with the window's top and sides, so
    the whole strip can be grabbed rather than only the part inside the content
    column. Three tracks rather than `space-between`, so the name is centred on the
