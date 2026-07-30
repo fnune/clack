@@ -223,7 +223,11 @@ export function App() {
               className="linkish"
               type="button"
               disabled={diagnosis === null}
-              title={diagnosis?.rulePath}
+              title={
+                diagnosis?.ruleInstalled === true
+                  ? "Takes Clack's permission to read your keyboard away again."
+                  : "Asks for your password once, so Clack may read your keyboard."
+              }
               onClick={() =>
                 void attempt(async () => {
                   setDiagnosis(

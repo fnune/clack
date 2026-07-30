@@ -43,8 +43,6 @@ pub struct Diagnosis {
     /// Whether the udev rule is in place. The window offers whichever direction
     /// is left, rather than hiding the one that is done.
     pub rule_installed: bool,
-    pub rule_path: String,
-    pub rule_text: String,
 }
 
 pub fn run() {
@@ -393,8 +391,6 @@ fn diagnose() -> Result<Diagnosis, String> {
         usable: report.is_usable(),
         summary: summarise(&report),
         rule_installed: clack::access::status() == clack::RuleStatus::Installed,
-        rule_path: clack::access::rule_path().display().to_string(),
-        rule_text: clack::access::rule_text().to_owned(),
     })
 }
 

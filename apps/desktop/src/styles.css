@@ -12,6 +12,7 @@
      having granted a permission yet is the former, and it is the first thing a
      new user sees. */
   --warn: #8a5a00;
+  --warn-ink: #ffffff;
   --error: #b4451f;
 
   color-scheme: light dark;
@@ -29,6 +30,7 @@
     --off: #46443f;
     --knob: #d9d6d0;
     --warn: #d9a343;
+    --warn-ink: #171615;
     --error: #e08160;
   }
 }
@@ -42,6 +44,7 @@
   --off: #46443f;
   --knob: #d9d6d0;
   --warn: #d9a343;
+  --warn-ink: #171615;
   --error: #e08160;
 }
 
@@ -54,6 +57,7 @@
   --off: #c4c0b8;
   --knob: #ffffff;
   --warn: #8a5a00;
+  --warn-ink: #ffffff;
   --error: #b4451f;
 }
 
@@ -512,7 +516,7 @@ h2 {
   margin: 0;
   border: 0;
   border-radius: 1px;
-  background: var(--knob);
+  background: var(--warn-ink);
   rotate: none;
   box-shadow: none;
 }
@@ -747,19 +751,6 @@ button:focus-visible {
 
 .status {
   margin: 0;
-  color: var(--ink-quiet);
-}
-
-pre {
-  margin: 0;
-  padding: 9px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  overflow-x: auto;
-  font-size: 11px;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
   color: var(--ink-quiet);
 }
 

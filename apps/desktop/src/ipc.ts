@@ -52,8 +52,6 @@ export type Diagnosis = {
   usable: boolean;
   summary: string;
   ruleInstalled: boolean;
-  rulePath: string;
-  ruleText: string;
 };
 
 export type Appearance = {
@@ -188,8 +186,6 @@ export function parseDiagnosis(value: unknown): Diagnosis {
     usable: flag(source, "usable"),
     summary: text(source, "summary"),
     ruleInstalled: flag(source, "ruleInstalled"),
-    rulePath: text(source, "rulePath"),
-    ruleText: text(source, "ruleText"),
   };
 }
 
