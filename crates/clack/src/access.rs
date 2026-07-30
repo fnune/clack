@@ -1,7 +1,7 @@
 //! Granting Clack permission to read keyboards, and taking it back.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, Stdio};
 use std::{env, fs, io};
 
 const RULE: &str = include_str!("../../../packaging/65-clack.rules");
@@ -33,6 +33,18 @@ impl Change {
     }
 }
 
+/// Whether this run is the privileged half of one of these changes. Every binary
+/// that can be re-executed through polkit has to answer this before it does
+/// anything else: root running a second copy of the app instead of writing the
+/// rule looks exactly like the user refusing the prompt.
+pub fn privileged_change(arguments: impl IntoIterator<Item = String>) -> Option<Change> {
+    arguments.into_iter().find_map(|argument| {
+        [Change::Allow, Change::Revoke]
+            .into_iter()
+            .find(|change| change.flag() == argument)
+    })
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum AccessError {
     #[error("this needs to run as root; it is meant to be reached through `clack --grant-access`")]
@@ -43,8 +55,10 @@ pub enum AccessError {
     NoPkexec,
     #[error("running pkexec failed: {0}")]
     Pkexec(#[source] io::Error),
-    #[error("the request was declined")]
-    Declined,
+    #[error("the password prompt was dismissed")]
+    Dismissed,
+    #[error("the change was refused or could not be made: {0}")]
+    Refused(String),
     #[error("finding this executable failed: {0}")]
     Unlocatable(#[source] io::Error),
     #[error("{0} did not run: {1}")]
@@ -84,6 +98,12 @@ pub fn elevate(change: Change) -> Result<(), AccessError> {
     }
 
     let mut command = Command::new("pkexec");
+
+    // pkexec refuses to run at all if SHELL is not listed in /etc/shells, which
+    // it is not inside a Nix shell. It replaces the environment for the program
+    // it runs anyway, so there is nothing to lose by dropping it.
+    command.env_remove("SHELL");
+
     if env::var_os("APPIMAGE").is_some() {
         command.arg("sh").arg("-c").arg(script(change));
     } else {
@@ -91,12 +111,34 @@ pub fn elevate(change: Change) -> Result<(), AccessError> {
         command.arg(executable).arg(change.flag());
     }
 
-    let outcome = command.status().map_err(AccessError::Pkexec)?;
+    // pkexec keeps 126 for a dismissed prompt and uses 127 for everything from a
+    // refusal to a failure of its own, so its own complaint is the only thing
+    // that can tell them apart. stdin stays attached for a terminal agent.
+    let outcome = command
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::piped())
+        .spawn()
+        .and_then(Child::wait_with_output)
+        .map_err(AccessError::Pkexec)?;
 
-    if outcome.success() {
-        Ok(())
-    } else {
-        Err(AccessError::Declined)
+    match outcome.status.code() {
+        Some(0) => Ok(()),
+        Some(126) => Err(AccessError::Dismissed),
+        code => Err(AccessError::Refused(complaint(&outcome.stderr, code))),
+    }
+}
+
+fn complaint(stderr: &[u8], code: Option<i32>) -> String {
+    let said = String::from_utf8_lossy(stderr).trim().to_owned();
+
+    if !said.is_empty() {
+        return said;
+    }
+
+    match code {
+        Some(code) => format!("it exited with status {code}"),
+        None => "it was killed by a signal".to_owned(),
     }
 }
 

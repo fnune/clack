@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(clippy::expect_used, clippy::panic, clippy::unwrap_used))]
+
 use std::io;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -330,4 +332,20 @@ fn list_devices() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The library decides what polkit is handed; clap has to declare the same
+    /// two strings, and a drift between them looks like a refused prompt.
+    #[test]
+    fn the_hidden_flags_are_the_ones_polkit_is_handed() {
+        let allow = Cli::try_parse_from(["clack", access::Change::Allow.flag()]).unwrap();
+        let revoke = Cli::try_parse_from(["clack", access::Change::Revoke.flag()]).unwrap();
+
+        assert!(allow.write_udev_rule);
+        assert!(revoke.remove_udev_rule);
+    }
 }
