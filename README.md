@@ -99,6 +99,7 @@ Tab = "→"
 [desktop]
 start_hidden = false
 start_overlay = false
+decorations = false
 ```
 
 Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a

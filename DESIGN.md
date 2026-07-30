@@ -103,7 +103,7 @@ Modules in `clack`: `input` enumerates and reads devices, reporting per-device a
 
 Two host quirks it works around, neither a choice:
 
-- GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar, which looks foreign on KDE. Running under XWayland gets the desktop's own decorations instead.
+- GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar, which looks foreign on KDE. The window is undecorated by default and draws one thin line carrying its name and a way out, so there is nothing to look foreign; `decorations = true` hands the frame back to the desktop, and XWayland is what makes that frame the desktop's own rather than GTK's.
 - On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. `scripts/desktop.sh` routes it through nixGL.
 
 ## Distribution

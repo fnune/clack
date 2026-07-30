@@ -50,6 +50,10 @@ pub struct Desktop {
     pub start_hidden: bool,
     /// Start showing keystrokes as soon as the app opens.
     pub start_overlay: bool,
+    /// Whether the window wears the desktop's own title bar. Off by default: the
+    /// window is one column of settings and a switch, and a title bar above it
+    /// says nothing the window does not.
+    pub decorations: bool,
 }
 
 impl Default for Overlay {
@@ -297,6 +301,7 @@ mod tests {
             desktop: Desktop {
                 start_hidden: true,
                 start_overlay: true,
+                decorations: true,
             },
         };
 

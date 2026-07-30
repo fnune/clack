@@ -77,6 +77,12 @@ pub fn run() {
                 }
             }
 
+            // The window is built undecorated, so only the other direction is
+            // worth acting on.
+            if settings.desktop.decorations {
+                dress_window(app.handle(), true);
+            }
+
             if !settings.desktop.start_hidden {
                 show_window(app.handle());
             }
@@ -137,6 +143,14 @@ fn install_tray(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+/// Whether the window wears the desktop's own title bar. The web view draws its
+/// own strip when it does not, so the two are never both there.
+fn dress_window(app: &AppHandle, decorated: bool) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_decorations(decorated);
+    }
 }
 
 fn show_window(app: &AppHandle) {
@@ -339,7 +353,8 @@ fn load_settings() -> Result<Settings, String> {
 }
 
 #[tauri::command]
-fn save_settings(settings: Settings) -> Result<(), String> {
+fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
+    dress_window(&app, settings.desktop.decorations);
     settings.save().map_err(|error| error.to_string())
 }
 

@@ -1,3 +1,4 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
@@ -198,6 +199,7 @@ export function App() {
 
       const loaded = await api.loadSettings();
       setSettings(loaded);
+      document.documentElement.dataset.decorated = String(loaded.desktop.decorations);
       setPreview(await api.preview(loaded));
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
@@ -248,8 +250,13 @@ export function App() {
   const editOverlay = (change: Partial<Overlay>) =>
     save({ ...settings, overlay: { ...settings.overlay, ...change } });
 
-  const editDesktop = (change: Partial<Desktop>) =>
+  const editDesktop = (change: Partial<Desktop>) => {
+    if (change.decorations !== undefined) {
+      document.documentElement.dataset.decorated = String(change.decorations);
+    }
+
     save({ ...settings, desktop: { ...settings.desktop, ...change } });
+  };
 
   const toggle = () =>
     void attempt(async () => {
@@ -261,6 +268,26 @@ export function App() {
 
   return (
     <main>
+      {!settings.desktop.decorations && (
+        // The window has no title bar of its own to carry the name, or to be
+        // taken hold of. Kept to one thin line so the switch is still the first
+        // thing under it.
+        <header data-tauri-drag-region>
+          <span className="wordmark" data-tauri-drag-region>
+            Clack
+          </span>
+          <button
+            className="shut"
+            type="button"
+            aria-label="Close, leaving Clack in the tray"
+            title="Close, leaving Clack in the tray"
+            onClick={() => void getCurrentWindow().hide()}
+          >
+            ✕
+          </button>
+        </header>
+      )}
+
       <div className={status.running ? "frame running" : "frame"}>
         <button
           className="control"
@@ -443,6 +470,20 @@ export function App() {
               type="checkbox"
               checked={settings.desktop.start_overlay}
               onChange={(event) => editDesktop({ start_overlay: event.target.checked })}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <h2>Window</h2>
+        <div className="list">
+          <label className="row check">
+            <span>Use this desktop's title bar</span>
+            <input
+              type="checkbox"
+              checked={settings.desktop.decorations}
+              onChange={(event) => editDesktop({ decorations: event.target.checked })}
             />
           </label>
         </div>

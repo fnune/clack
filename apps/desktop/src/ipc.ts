@@ -16,6 +16,7 @@ export type Overlay = {
 export type Desktop = {
   start_hidden: boolean;
   start_overlay: boolean;
+  decorations: boolean;
 };
 
 export type PreviewRun = {
@@ -124,6 +125,7 @@ export function parseSettings(value: unknown): Settings {
     desktop: {
       start_hidden: flag(desktop, "start_hidden"),
       start_overlay: flag(desktop, "start_overlay"),
+      decorations: flag(desktop, "decorations"),
     },
   };
 }

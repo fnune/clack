@@ -18,6 +18,8 @@
         "minWidth": 360,
         "minHeight": 480,
         "resizable": true,
+        "decorations": false,
+        "transparent": true,
         "visible": false
       }
     ],
