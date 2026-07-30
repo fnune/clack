@@ -15,6 +15,9 @@ use crate::config::{Anchor, Config, Style};
 const MIN_TIMEOUT: f32 = 0.2;
 const MAX_TIMEOUT: f32 = 30.0;
 const MAX_MARGIN: i32 = 4000;
+/// A replacement glyph stands in for one key, so a paragraph pasted into the box
+/// is a mistake rather than an intention.
+const MAX_GLYPH_CHARS: usize = 8;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -66,18 +69,59 @@ impl Default for Overlay {
 }
 
 impl Overlay {
-    /// Turns what the file said into what a session needs, holding values to
-    /// what can actually be drawn.
-    pub fn to_config(&self) -> Config {
-        Config {
-            timeout: Duration::from_secs_f32(self.timeout_seconds.clamp(MIN_TIMEOUT, MAX_TIMEOUT)),
-            style: Style {
-                font: self.font.clone(),
-                margin: self.margin.clamp(0, MAX_MARGIN),
-                anchor: self.anchor,
+    /// Holds every value to something the overlay can be asked to do. Applied on
+    /// the way in and on the way out, so a file that has been hand-edited, or
+    /// written by an older version, is corrected once rather than carried around
+    /// and clamped wherever it happens to be used.
+    ///
+    /// A number is corrected rather than rejected: someone who typed a margin of
+    /// -50 wants the overlay at the edge, and refusing to start over it would be
+    /// worse than putting it there.
+    pub fn clamped(&self) -> Self {
+        let fallback = Self::default();
+
+        Self {
+            font: if self.font.trim().is_empty() {
+                fallback.font
+            } else {
+                self.font.clone()
+            },
+            margin: self.margin.clamp(0, MAX_MARGIN),
+            anchor: self.anchor,
+            // NaN survives `clamp`, so it cannot be the thing that bounds it.
+            timeout_seconds: if self.timeout_seconds.is_finite() {
+                self.timeout_seconds.clamp(MIN_TIMEOUT, MAX_TIMEOUT)
+            } else {
+                fallback.timeout_seconds
             },
             keymap: self.keymap.clone(),
-            symbols: self.to_symbols(),
+            symbols: self.symbols,
+            symbol_overrides: self
+                .symbol_overrides
+                .iter()
+                .map(|(keysym, glyph)| {
+                    (
+                        keysym.clone(),
+                        glyph.chars().take(MAX_GLYPH_CHARS).collect(),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    /// Turns what the file said into what a session needs.
+    pub fn to_config(&self) -> Config {
+        let held = self.clamped();
+
+        Config {
+            timeout: Duration::from_secs_f32(held.timeout_seconds),
+            style: Style {
+                font: held.font.clone(),
+                margin: held.margin,
+                anchor: held.anchor,
+            },
+            keymap: held.keymap.clone(),
+            symbols: held.to_symbols(),
         }
     }
 
@@ -93,6 +137,13 @@ impl Overlay {
 }
 
 impl Settings {
+    pub fn clamped(&self) -> Self {
+        Self {
+            overlay: self.overlay.clamped(),
+            desktop: self.desktop,
+        }
+    }
+
     /// Reads the settings file, or the defaults when there is none. A file that
     /// exists but cannot be understood is an error rather than a silent reset,
     /// because losing someone's configuration without saying so is worse than
@@ -103,7 +154,8 @@ impl Settings {
 
     pub fn load_from(path: &Path) -> Result<Self, SettingsError> {
         match fs::read_to_string(path) {
-            Ok(text) => toml::from_str(&text)
+            Ok(text) => toml::from_str::<Self>(&text)
+                .map(|settings| settings.clamped())
                 .map_err(|error| SettingsError::Invalid(path.display().to_string(), error)),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Self::default()),
             Err(error) => Err(SettingsError::Reading(path.display().to_string(), error)),
@@ -120,7 +172,7 @@ impl Settings {
                 .map_err(|error| SettingsError::Writing(path.display().to_string(), error))?;
         }
 
-        let text = toml::to_string_pretty(self)?;
+        let text = toml::to_string_pretty(&self.clamped())?;
         fs::write(path, text)
             .map_err(|error| SettingsError::Writing(path.display().to_string(), error))
     }
@@ -275,6 +327,85 @@ mod tests {
 
         assert_eq!(Settings::reset_at(&path).unwrap(), Settings::default());
         assert!(!backup_for(&path).exists());
+
+        fs::remove_dir_all(&directory).unwrap();
+    }
+
+    #[test]
+    fn a_negative_distance_becomes_no_distance() {
+        let overlay = Overlay {
+            margin: -50,
+            ..Overlay::default()
+        };
+
+        assert_eq!(overlay.clamped().margin, 0);
+    }
+
+    #[test]
+    fn a_timeout_that_is_not_a_number_falls_back_rather_than_surviving_the_clamp() {
+        let overlay = Overlay {
+            timeout_seconds: f32::NAN,
+            ..Overlay::default()
+        };
+
+        assert_eq!(
+            overlay.clamped().timeout_seconds,
+            Overlay::default().timeout_seconds
+        );
+    }
+
+    #[test]
+    fn a_blank_font_falls_back_to_one_that_exists() {
+        let overlay = Overlay {
+            font: "   ".to_owned(),
+            ..Overlay::default()
+        };
+
+        assert_eq!(overlay.clamped().font, Overlay::default().font);
+    }
+
+    #[test]
+    fn a_replacement_glyph_cannot_be_a_paragraph() {
+        let overlay = Overlay {
+            symbol_overrides: HashMap::from([("Tab".to_owned(), "x".repeat(400))]),
+            ..Overlay::default()
+        };
+
+        assert_eq!(
+            overlay
+                .clamped()
+                .symbol_overrides
+                .get("Tab")
+                .map(String::len),
+            Some(MAX_GLYPH_CHARS)
+        );
+    }
+
+    #[test]
+    fn a_file_out_of_range_is_corrected_on_the_way_in_and_out() {
+        let directory = std::env::temp_dir().join("clack-clamp-test");
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("config.toml");
+        fs::write(&path, "[overlay]\nmargin = -50\ntimeout_seconds = 900\n").unwrap();
+
+        let loaded = Settings::load_from(&path).unwrap();
+        assert_eq!(loaded.overlay.margin, 0);
+        assert_eq!(loaded.overlay.timeout_seconds, MAX_TIMEOUT);
+
+        Settings {
+            overlay: Overlay {
+                margin: -50,
+                ..Overlay::default()
+            },
+            ..Settings::default()
+        }
+        .save_to(&path)
+        .unwrap();
+
+        assert!(
+            !fs::read_to_string(&path).unwrap().contains("-50"),
+            "an out-of-range value should not reach the file"
+        );
 
         fs::remove_dir_all(&directory).unwrap();
     }

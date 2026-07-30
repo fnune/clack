@@ -82,8 +82,13 @@ function NumberField({
           const text = event.target.value;
           setDraft(text);
 
+          // `min` and `max` on a number input only govern the arrows, so a typed
+          // value is held here too. The library holds it again on the way to the
+          // file, because a hand-edited file never came through this box.
           const parsed = Number(text);
-          if (text !== "" && Number.isFinite(parsed)) onCommit(parsed);
+          if (text !== "" && Number.isFinite(parsed)) {
+            onCommit(Math.min(Math.max(parsed, min), max));
+          }
         }}
         onBlur={() => setDraft(null)}
       />

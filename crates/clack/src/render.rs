@@ -34,6 +34,9 @@ const TEXT: &str = "#f5f5f5";
 const CHORD: &str = "#7dd3fc";
 const SPECIAL: &str = "#a1a1aa";
 const CONFIGURE_ROUNDTRIPS: usize = 10;
+/// Kept between the pill and the screen edges, so a line long enough to fill the
+/// output still reads as a pill rather than a band.
+const EDGE_GAP: i32 = 16;
 
 /// `wp_fractional_scale_v1` reports scale in 120ths, so 1.75 arrives as 210.
 const SCALE_DENOMINATOR: u32 = 120;
@@ -116,6 +119,7 @@ impl LayerOverlay {
                 configured: false,
                 closed: false,
                 scale: SCALE_DENOMINATOR,
+                on: None,
                 viewport,
                 fractional_scale,
             },
@@ -191,6 +195,7 @@ impl LayerOverlay {
             &self.style.font,
             (width, height),
             self.scale_factor(),
+            self.state.room(),
         )?;
         let stride = drawn.stride();
         let pixels = drawn.data()?;
@@ -294,7 +299,7 @@ impl Surface for LayerOverlay {
                 self.blank()?;
             }
         } else {
-            let size = measure(frame, &self.style.font)?;
+            let size = measure(frame, &self.style.font, self.state.room())?;
             if !self.mapped {
                 self.map(size)?;
             } else if self.size != Some(size) {
@@ -318,10 +323,10 @@ impl std::fmt::Debug for LayerOverlay {
     }
 }
 
-fn measure(frame: &Frame, font: &str) -> Result<(u32, u32), RenderError> {
+fn measure(frame: &Frame, font: &str, room: Option<i32>) -> Result<(u32, u32), RenderError> {
     let probe = ImageSurface::create(Format::ARgb32, 1, 1)?;
     let context = Context::new(&probe)?;
-    let (text_width, text_height) = layout(&context, frame, font).pixel_size();
+    let (text_width, text_height) = layout(&context, frame, font, room).pixel_size();
 
     let width = text_width.saturating_add(2 * PADDING_X);
     let height = text_height.saturating_add(2 * PADDING_Y);
@@ -334,6 +339,7 @@ fn draw(
     font: &str,
     device: (u32, u32),
     scale: f64,
+    room: Option<i32>,
 ) -> Result<ImageSurface, RenderError> {
     let surface = ImageSurface::create(Format::ARgb32, dimension(device.0)?, dimension(device.1)?)?;
     let context = Context::new(&surface)?;
@@ -351,17 +357,27 @@ fn draw(
     context.fill()?;
 
     context.move_to(f64::from(PADDING_X), f64::from(PADDING_Y));
-    pangocairo::functions::show_layout(&context, &layout(&context, frame, font));
+    pangocairo::functions::show_layout(&context, &layout(&context, frame, font, room));
 
     drop(context);
     surface.flush();
     Ok(surface)
 }
 
-fn layout(context: &Context, frame: &Frame, font: &str) -> pango::Layout {
+fn layout(context: &Context, frame: &Frame, font: &str, room: Option<i32>) -> pango::Layout {
     let layout = pangocairo::functions::create_layout(context);
     layout.set_font_description(Some(&pango::FontDescription::from_string(font)));
     layout.set_markup(&markup(frame));
+
+    // A line of long key names outgrows any screen, and the surface is sized to
+    // whatever this measures, so the ceiling belongs here. What goes is the start
+    // of the line: the keys just pressed are the ones worth seeing.
+    if let Some(room) = room {
+        layout.set_width(room.saturating_mul(pango::SCALE));
+        layout.set_ellipsize(pango::EllipsizeMode::Start);
+        layout.set_single_paragraph_mode(true);
+    }
+
     layout
 }
 
@@ -431,8 +447,35 @@ struct State {
     closed: bool,
     /// In 120ths, whatever the source.
     scale: u32,
+    /// The output the overlay is currently on, which decides how wide it may be.
+    on: Option<wl_output::WlOutput>,
     viewport: Option<WpViewport>,
     fractional_scale: Option<WpFractionalScaleV1>,
+}
+
+impl State {
+    /// How wide the text may be, in logical pixels. `None` while no output is
+    /// known, which is only until the surface is first shown on one.
+    ///
+    /// Read afresh for every frame rather than cached, so a resolution change is
+    /// picked up without watching for one.
+    fn room(&self) -> Option<i32> {
+        let width = match &self.on {
+            Some(output) => self.output.info(output).and_then(|info| info.logical_size),
+            // Before the surface lands anywhere, the narrowest output is the only
+            // width that is safe on whichever one it turns out to be.
+            None => self
+                .output
+                .outputs()
+                .filter_map(|output| self.output.info(&output))
+                .filter_map(|info| info.logical_size)
+                .min_by_key(|(width, _)| *width),
+        };
+
+        width
+            .map(|(width, _)| width - 2 * EDGE_GAP - 2 * PADDING_X)
+            .filter(|room| *room > 0)
+    }
 }
 
 impl LayerShellHandler for State {
@@ -483,8 +526,9 @@ impl CompositorHandler for State {
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &wl_surface::WlSurface,
-        _: &wl_output::WlOutput,
+        output: &wl_output::WlOutput,
     ) {
+        self.on = Some(output.clone());
     }
 
     fn surface_leave(
@@ -492,8 +536,11 @@ impl CompositorHandler for State {
         _: &Connection,
         _: &QueueHandle<Self>,
         _: &wl_surface::WlSurface,
-        _: &wl_output::WlOutput,
+        output: &wl_output::WlOutput,
     ) {
+        if self.on.as_ref() == Some(output) {
+            self.on = None;
+        }
     }
 }
 
@@ -545,5 +592,47 @@ impl Dispatch<WpFractionalScaleV1, ()> for State {
         if let FractionalScaleEvent::PreferredScale { scale } = event {
             state.scale = scale.max(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use clack_core::Run;
+
+    use super::*;
+
+    const FONT: &str = "Sans Bold 24";
+
+    fn line(count: usize) -> Frame {
+        Frame {
+            runs: (0..count)
+                .map(|_| Run {
+                    text: "BackSpace".to_owned(),
+                    kind: RunKind::Special,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_line_longer_than_the_output_is_measured_to_the_output() {
+        let room = 400;
+
+        let (width, _) = measure(&line(200), FONT, Some(room)).unwrap();
+
+        assert!(
+            width <= u32::try_from(room + 2 * PADDING_X).unwrap(),
+            "{width} exceeds the room it was given"
+        );
+    }
+
+    #[test]
+    fn a_line_that_fits_is_left_the_width_it_wants() {
+        let short = line(1);
+
+        assert_eq!(
+            measure(&short, FONT, Some(4000)).unwrap(),
+            measure(&short, FONT, None).unwrap()
+        );
     }
 }
