@@ -57,7 +57,11 @@ mkfifo "$keyboard"
 # Opening read-write means neither end ever blocks waiting for the other.
 exec 3<> "$keyboard"
 
+# Empty, so the developer's own settings cannot decide whether this passes.
+: > "$work/config.toml"
+
 ./target/debug/clack \
+    --config "$work/config.toml" \
     --device "$keyboard" \
     --keymap crates/clack/tests/fixtures/us.xkb \
     --timeout 30 \

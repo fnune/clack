@@ -1,17 +1,17 @@
 [package]
-name = "clack-tray"
-description = "Tray application for Clack"
+name = "clack-desktop"
+description = "Desktop application for Clack"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/fnune/clack"
 
 [lib]
-name = "clack_tray_lib"
+name = "clack_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "clack-tray"
+name = "clack-desktop"
 path = "src/main.rs"
 
 [build-dependencies]

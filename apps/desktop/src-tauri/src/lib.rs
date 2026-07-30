@@ -53,6 +53,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_settings,
             save_settings,
+            reset_settings,
             start,
             stop,
             status,
@@ -63,20 +64,20 @@ pub fn run() {
         ])
         .setup(|app| {
             let settings = Settings::load().unwrap_or_else(|error| {
-                eprintln!("clack-tray: {error}, falling back to defaults");
+                eprintln!("clack-desktop: {error}, falling back to defaults");
                 Settings::default()
             });
 
             install_tray(app.handle())?;
 
-            if settings.tray.start_overlay {
+            if settings.desktop.start_overlay {
                 let handle = app.handle().clone();
                 if let Err(error) = start_session(&handle, &settings) {
-                    eprintln!("clack-tray: {error}");
+                    eprintln!("clack-desktop: {error}");
                 }
             }
 
-            if !settings.tray.start_hidden {
+            if !settings.desktop.start_hidden {
                 show_window(app.handle());
             }
 
@@ -93,7 +94,7 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .map_or_else(
-            |error| eprintln!("clack-tray: {error}"),
+            |error| eprintln!("clack-desktop: {error}"),
             |app| {
                 app.run(|handle, event| {
                     if matches!(event, RunEvent::ExitRequested { .. }) {
@@ -159,7 +160,7 @@ fn toggle_session(app: &AppHandle) {
     };
 
     if let Err(error) = outcome {
-        eprintln!("clack-tray: {error}");
+        eprintln!("clack-desktop: {error}");
     }
 
     publish(app);
@@ -342,6 +343,16 @@ fn save_settings(settings: Settings) -> Result<(), String> {
     settings.save().map_err(|error| error.to_string())
 }
 
+/// Writes the defaults over whatever is there, including anything hand-edited in
+/// the file that the window never shows.
+#[tauri::command]
+fn reset_settings() -> Result<Settings, String> {
+    let settings = Settings::default();
+    settings.save().map_err(|error| error.to_string())?;
+
+    Ok(settings)
+}
+
 #[tauri::command]
 fn start(app: AppHandle, settings: Settings) -> Result<Status, String> {
     settings.save().map_err(|error| error.to_string())?;
@@ -398,15 +409,14 @@ fn summarise(report: &clack::Report) -> String {
 
     if report.keyboards() == 0 {
         return format!(
-            "No readable keyboard, {} devices denied. Install the udev rule from packaging/65-clack.rules.",
+            "Clack cannot read any keyboard, and {} devices refused permission.",
             report.denied()
         );
     }
 
     if !report.can_draw() {
-        return "This compositor does not support layer shell, so the overlay cannot be drawn."
-            .to_owned();
+        return "This desktop cannot show the overlay above other windows.".to_owned();
     }
 
-    "The compositor did not send a keymap, so keys cannot be named.".to_owned()
+    "This desktop did not share its keyboard layout, so keys cannot be named.".to_owned()
 }

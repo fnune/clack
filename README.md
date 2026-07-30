@@ -1,23 +1,37 @@
 # Clack
 
-Shows the keys you press, on screen, for screencasts and demos. Wayland only.
+Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland desktops,
+where [screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot go.
 
-[Screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot do this on Wayland: it asks the X server for every key event, and Wayland has no equivalent, by design. Clack reads the kernel's input devices instead, and draws on a `wlr-layer-shell` surface so the overlay stays above other windows rather than behind them.
-
-Tested on KDE Plasma, and should work on any compositor with layer shell. Early days: the overlay works, but there is no config file yet and most of screenkey's display modes are missing.
-
-## Try it
-
-```sh
-nix run github:fnune/clack -- --check
-nix run github:fnune/clack
-```
-
-Clack reads `/dev/input/event*`, which needs permission. `--check` says whether it has that, and whether your compositor supports layer shell.
+There is a desktop app with a tray icon and a single switch, and a command line program. Both do
+the same thing and share the same settings.
 
 ## Install
 
-On NixOS, add the flake as an input and enable the module. It installs the binary and tells udev about the rule, which a package on its own cannot do:
+### The desktop app
+
+Download `Clack-x86_64.AppImage` from [the latest
+release](https://github.com/fnune/clack/releases/latest), make it executable, and run it:
+
+```sh
+chmod +x Clack-x86_64.AppImage
+./Clack-x86_64.AppImage
+```
+
+It puts an icon in your tray. Click the switch to start showing your keys.
+
+### The command line
+
+Download `clack-linux-amd64` from the same release and put it on your `PATH`:
+
+```sh
+install -Dm755 clack-linux-amd64 ~/.local/bin/clack
+clack --check
+```
+
+### With Nix
+
+On NixOS, add the flake as an input and enable the module:
 
 ```nix
 {
@@ -29,33 +43,42 @@ On NixOS, add the flake as an input and enable the module. It installs the binar
 }
 ```
 
-Anywhere else, install the binary however you like and then grant it access once:
+Elsewhere, `nix run github:fnune/clack`. Installing the package into a profile is not enough on
+its own, because udev only reads rules a system has been told about; the module handles that, and
+so does `--grant-access` below.
+
+## Letting Clack read your keyboard
+
+Clack reads the kernel's input devices, which needs permission your user does not have by
+default. Grant it once:
 
 ```sh
-clack --install-rule
+clack --grant-access
 ```
 
-That shows you the udev rule it wants to write, then asks for your password once through polkit. It grants an ACL to whoever is logged in on the active seat, revoked at logout. No group membership, no setuid, no prompt on later launches.
-
-`nix profile install` on its own is not enough: udev only reads rules a system has been told about, so the rule sits unused in your profile and Clack cannot open any keyboard. Use the module, or run `--install-rule`.
+The desktop app has a button for the same thing. Either way you are asked for your password once,
+nothing stays elevated, and later launches ask for nothing. `clack --check` says whether it
+worked.
 
 ## Use
 
 ```sh
-clack
-clack --font "JetBrains Mono Bold 28" --top --margin 140 --timeout 3
-clack --print                       # stdout instead of the overlay
-clack --check                       # device access, layer shell, keymap
-clack --list-devices
-clack --device /dev/input/event3    # one keyboard, skipping the usual test
-clack --keymap ./layout.xkb         # override the compositor's keymap
+clack                                                  # show the overlay, Ctrl+C to stop
+clack --check                                          # will Clack work here?
+clack --anchor top --margin 140 --timeout 3             # where it sits, and for how long
+clack --font "JetBrains Mono Bold 28"                   # any font Pango can name
+clack --symbols                                        # space and enter get glyphs, not names
+clack --print                                          # keystrokes on stdout, to pipe anywhere
 ```
 
-Ctrl+C to stop. Layouts come from your compositor, so what you configured in your desktop settings is what Clack shows.
+`--help` lists the rest. Your layout comes from your desktop, so what you configured there is
+what Clack shows.
 
-## Configuration
+## Settings
 
-One file, at `$XDG_CONFIG_HOME/clack/config.toml`, drives both the command line and the tray. `clack --config-path` prints where that is. Flags override it for a single run, and the tray writes to it as you change things.
+One file, at `$XDG_CONFIG_HOME/clack/config.toml`, drives both programs. `clack --config-path`
+prints where that is. Flags override it for a single run; the desktop app writes to it as you
+change things.
 
 ```toml
 [overlay]
@@ -63,17 +86,23 @@ font = "Sans Bold 24"
 margin = 96
 anchor = "bottom"
 timeout_seconds = 1.5
+symbols = false
 
-[tray]
+[overlay.symbol_overrides]
+Tab = "→"
+
+[desktop]
 start_hidden = false
 start_overlay = false
 ```
 
-Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a silent no-op, so a typo tells you instead of quietly doing nothing.
+Anything you leave out keeps its default. A key Clack does not recognise is an error rather than a
+silent no-op, so a typo tells you instead of quietly doing nothing.
 
-## What it can see
+## What Clack can see
 
-Clack reads every keystroke on the machine, including keystrokes typed into other applications, including passwords. There is no way to show your keystrokes without that ability.
+Clack reads every keystroke on the machine, including keystrokes typed into other applications,
+including passwords. There is no way to show your keystrokes without that ability.
 
 What it does with it:
 
@@ -84,37 +113,70 @@ What it does with it:
 
 The overlay is the indicator that Clack is running. Stop it before you type a password.
 
-## Tray app
-
-`apps/tray` is a Tauri app driving the library: a tray icon, a settings window, and an option to start hidden in the tray. Closing the window leaves it running in the tray.
-
-```sh
-./scripts/tray.sh
-```
-
 ## As a library
 
-The CLI and the tray are both consumers of the `clack` crate. Anything implementing `Surface` can take the overlay's place.
+Both programs are consumers of the `clack` crate. The overlay is one implementation of `Surface`,
+and anything else that can show a `Frame` will do:
 
 ```rust
-let mut session = clack::LiveSession::overlay(&clack::Config::default())?;
-let handle = session.handle();   // pause, resume, or stop from another thread
+use clack::{Config, Frame, LiveSession, Surface};
+
+struct Caption(String);
+
+impl Surface for Caption {
+    type Error = std::convert::Infallible;
+
+    fn present(&mut self, frame: &Frame) -> Result<(), Self::Error> {
+        self.0 = frame.runs.iter().map(|run| run.text.as_str()).collect();
+        Ok(())
+    }
+}
+
+let config = Config::default();
+let mut session = LiveSession::with_surface(Caption(String::new()), &config)?;
+let handle = session.handle();
+
+std::thread::spawn(move || {
+    handle.pause();
+    handle.resume();
+    handle.stop();
+});
 
 session.run()?;
 ```
 
+`Handle` is the only thing that crosses threads. Reading, naming and drawing all happen on the
+thread that called `run`.
+
+## How it works
+
+Wayland gives no client the ability to watch another client's input, by design, so screenkey's
+approach has no equivalent here. Clack instead reads `/dev/input/event*` directly, asks the
+compositor for the keyboard layout it is already using, and draws on a `wlr-layer-shell` surface
+so the overlay sits above other windows rather than behind them.
+
+Developed on KDE Plasma. It should work on any compositor implementing layer shell, which is most
+of them apart from GNOME's Mutter.
+
+[`DESIGN.md`](DESIGN.md) has the long version: what the alternatives were, why each one fails,
+and the compositor behaviour that shaped the drawing code.
+
 ## Development
+
+Everything comes from a [Nix](https://nixos.org/download/) flake, so
+[install Nix](https://nixos.org/download/) and the rest follows:
 
 ```sh
 nix develop
-cargo test
-./scripts/e2e.sh                 # the built binary, a real compositor, checked from pixels
-./scripts/headless-overlay.sh    # draws the overlay and screenshots it, for looking at
+just            # lists every task
+just check      # what CI runs
+just desktop    # the desktop app, in development
+just e2e        # the built binary, a real compositor, checked from pixels
 ```
 
-Tests cannot reach your session: keys are fed through a pipe rather than a uinput device, and anything that draws runs inside a nested compositor.
+Tests cannot reach your session: keys are fed through a pipe rather than a uinput device, and
+anything that draws runs inside a nested compositor.
 
-- [`DESIGN.md`](DESIGN.md): why Wayland forces this shape, and what the alternatives were.
-- [`engineering/README.md`](engineering/README.md): principles and conventions.
+[`engineering/README.md`](engineering/README.md) has the principles and conventions.
 
 MIT licensed.

@@ -579,7 +579,7 @@ name = "clack-core"
 version = "0.1.0"
 
 [[package]]
-name = "clack-tray"
+name = "clack-desktop"
 version = "0.1.0"
 dependencies = [
  "clack",

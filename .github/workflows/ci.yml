@@ -18,11 +18,11 @@ jobs:
       - run: nix develop --command ./scripts/e2e.sh
       - run: nix build
 
-  tray:
+  desktop:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: apps/tray
+        working-directory: apps/desktop
     steps:
       - uses: actions/checkout@v5
       - uses: cachix/install-nix-action@v31

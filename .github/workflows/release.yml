@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+# Nix builds every check, but nothing shipped to users comes out of it. An
+# AppImage has to bundle the host distribution's own libraries, and the plain
+# binary wants the oldest glibc available so it runs on more than one
+# distribution, so both artefacts are built against Ubuntu instead.
+env:
+  APT_DEPENDENCIES: >-
+    libcairo2-dev
+    libglib2.0-dev
+    libpango1.0-dev
+    libxkbcommon-dev
+    pkg-config
+  GIT_CLIFF_VERSION: "2.13.1"
+
+jobs:
+  wait-for-ci:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+    steps:
+      # A tag does not trigger CI, but the commit it points at already did, and
+      # check runs belong to the commit.
+      - name: Wait for CI to pass
+        run: |
+          for _ in $(seq 60); do
+            status=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/check-runs" \
+              --jq '.check_runs
+                    | map(select(.name == "check" or .name == "desktop"))
+                    | if length < 2 then "pending"
+                      elif any(.conclusion == "failure" or .conclusion == "cancelled") then "failure"
+                      elif all(.conclusion == "success") then "success"
+                      else "pending" end')
+            echo "CI: $status"
+            case "$status" in
+              success) exit 0 ;;
+              failure) exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Timed out waiting for CI"
+          exit 1
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  command-line:
+    needs: wait-for-ci
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: sudo apt-get update && sudo apt-get install -y $APT_DEPENDENCIES
+
+      - name: Build
+        run: |
+          cargo build --release --locked --package clack-cli
+          install -m755 target/release/clack clack-linux-amd64
+          sha256sum clack-linux-amd64 > checksums.txt
+
+      - name: Write the release notes
+        run: |
+          curl -sSfL "https://github.com/orhun/git-cliff/releases/download/v$GIT_CLIFF_VERSION/git-cliff-$GIT_CLIFF_VERSION-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar xz --strip-components=1 "git-cliff-$GIT_CLIFF_VERSION/git-cliff"
+          ./git-cliff --latest --strip header > release-notes.md
+          cat release-notes.md
+
+      - name: Draft the release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --draft \
+            --title "${{ github.ref_name }}" \
+            --notes-file release-notes.md \
+            clack-linux-amd64 \
+            checksums.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  appimage:
+    needs: command-line
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/desktop/pnpm-lock.yaml
+
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y $APT_DEPENDENCIES \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - working-directory: apps/desktop
+        run: pnpm install --frozen-lockfile
+
+      - working-directory: apps/desktop
+        run: pnpm tauri build --bundles appimage
+
+      - name: Attach it to the release
+        run: |
+          appimage=$(find apps/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
+          if [[ -z $appimage ]]; then
+            echo "No AppImage was produced"
+            exit 1
+          fi
+          mv "$appimage" Clack-x86_64.AppImage
+          gh release upload "${{ github.ref_name }}" Clack-x86_64.AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

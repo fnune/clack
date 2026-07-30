@@ -15,20 +15,44 @@ enum Edge {
 }
 
 /// Every appearance option defaults to what the settings file says, and the
-/// settings file defaults to what the tray app writes. Flags override both, for
-/// this run only.
+/// settings file defaults to what the desktop app writes. Flags override both,
+/// for this run only.
 #[derive(Debug, Parser)]
 #[command(name = "clack", version, about = "Show the keys you press, on Wayland")]
 struct Cli {
-    /// Report device access, compositor support, and keymap source, then exit
+    /// Say whether Clack can run here, and what to do if it cannot
     #[arg(long)]
     check: bool,
 
-    /// List input devices and whether Clack can read them, then exit
+    /// Allow Clack to read your keyboard, asking for your password once
     #[arg(long)]
-    list_devices: bool,
+    grant_access: bool,
 
-    /// Print keystrokes to stdout instead of drawing an overlay
+    /// Font, in Pango notation
+    #[arg(long, value_name = "FONT")]
+    font: Option<String>,
+
+    /// Which screen edge to sit against
+    #[arg(long, value_name = "EDGE")]
+    anchor: Option<Edge>,
+
+    /// Distance from that edge, in pixels
+    #[arg(long, value_name = "PIXELS")]
+    margin: Option<i32>,
+
+    /// How long a keystroke stays on screen, in seconds
+    #[arg(long, value_name = "SECONDS")]
+    timeout: Option<f32>,
+
+    /// Draw keys with no letter of their own, such as space and enter, as symbols
+    #[arg(long, overrides_with = "no_symbols")]
+    symbols: bool,
+
+    /// Draw those keys by name instead
+    #[arg(long, overrides_with = "symbols")]
+    no_symbols: bool,
+
+    /// Write keystrokes to stdout instead of drawing them on screen
     #[arg(long)]
     print: bool,
 
@@ -40,33 +64,13 @@ struct Cli {
     #[arg(long)]
     config_path: bool,
 
-    /// How long a keystroke stays on screen, in seconds
-    #[arg(long, value_name = "SECONDS")]
-    timeout: Option<f32>,
-
-    /// Font, in Pango notation
-    #[arg(long, value_name = "FONT")]
-    font: Option<String>,
-
-    /// Distance from the anchored screen edge, in pixels
-    #[arg(long, value_name = "PIXELS")]
-    margin: Option<i32>,
-
-    /// Which screen edge to anchor to
-    #[arg(long, value_name = "EDGE")]
-    anchor: Option<Edge>,
-
-    /// Use this XKB keymap instead of the one the compositor is using
+    /// Use this XKB keymap, for a compositor that will not share the one it uses
     #[arg(long, value_name = "PATH")]
     keymap: Option<PathBuf>,
 
     /// Read only this device, skipping the usual keyboard test. Repeatable
-    #[arg(long = "device", value_name = "PATH")]
+    #[arg(long = "device", value_name = "PATH", hide = true)]
     devices: Vec<PathBuf>,
-
-    /// Install the udev rule that lets Clack read keyboards, then exit
-    #[arg(long)]
-    install_rule: bool,
 
     /// Write the udev rule. Clack passes this to itself once polkit has raised it to root
     #[arg(long, hide = true)]
@@ -95,6 +99,12 @@ impl Cli {
                 Edge::Bottom => clack::Anchor::Bottom,
             };
         }
+        if self.symbols {
+            settings.overlay.symbols = true;
+        }
+        if self.no_symbols {
+            settings.overlay.symbols = false;
+        }
         if self.keymap.is_some() {
             settings.overlay.keymap = self.keymap.clone();
         }
@@ -110,10 +120,8 @@ fn main() -> ExitCode {
         show_config_path()
     } else if cli.write_udev_rule {
         access::write_rule_as_root().map_err(anyhow::Error::from)
-    } else if cli.install_rule {
-        install_rule()
-    } else if cli.list_devices {
-        list_devices()
+    } else if cli.grant_access {
+        grant_access()
     } else if cli.check {
         check()
     } else if cli.print {
@@ -163,9 +171,9 @@ fn session<S: clack::Surface>(
     })
 }
 
-fn install_rule() -> anyhow::Result<()> {
+fn grant_access() -> anyhow::Result<()> {
     if access::status() == RuleStatus::Installed {
-        println!("{} is already installed.", access::rule_path().display());
+        println!("Clack is already allowed to read your keyboard.");
         return Ok(());
     }
 
@@ -183,12 +191,79 @@ fn install_rule() -> anyhow::Result<()> {
     println!();
 
     access::install()?;
-    println!("Installed. Run clack --check to confirm.");
+    println!("Done. Run clack --check to confirm.");
 
     Ok(())
 }
 
+fn check() -> anyhow::Result<()> {
+    let report = Report::gather()?;
+
+    println!("keyboards       {}", describe_devices(&report));
+    match &report.compositor {
+        CompositorReport::Unreachable(error) => {
+            println!("overlay         unknown: {error}");
+            println!("layout          unknown: {error}");
+        }
+        CompositorReport::Reachable {
+            layer_shell,
+            seat,
+            keymap,
+        } => {
+            println!(
+                "overlay         {}",
+                if *layer_shell {
+                    "can be drawn above other windows"
+                } else {
+                    "this desktop cannot show it; it has no layer shell"
+                }
+            );
+            println!(
+                "layout          {}",
+                describe_keymap(keymap, seat.as_deref())
+            );
+        }
+    }
+
+    if report.is_usable() {
+        return Ok(());
+    }
+
+    if report.keyboards() == 0 {
+        list_devices()?;
+        if report.denied() > 0 {
+            println!();
+            println!("Run clack --grant-access to allow reading them.");
+        }
+    }
+
+    Err(anyhow::anyhow!("clack would not run here"))
+}
+
+fn describe_devices(report: &Report) -> String {
+    match (report.keyboards(), report.denied()) {
+        (0, 0) => "none found".to_owned(),
+        (0, denied) => format!("none readable, {denied} refused permission"),
+        (found, 0) => format!("{found} readable"),
+        (found, denied) => format!("{found} readable, {denied} refused permission"),
+    }
+}
+
+fn describe_keymap(keymap: &KeymapSource, seat: Option<&str>) -> String {
+    let seat = seat.unwrap_or("unnamed seat");
+    match keymap {
+        KeymapSource::Compositor { bytes } => {
+            format!("{bytes} bytes from this desktop, seat {seat}")
+        }
+        KeymapSource::Unreadable(error) => {
+            format!("this desktop sent one but it could not be read: {error}")
+        }
+        KeymapSource::Absent => "this desktop shared none; pass --keymap to supply one".to_owned(),
+    }
+}
+
 fn list_devices() -> anyhow::Result<()> {
+    println!();
     for device in clack::input::survey()? {
         let name = device.name.unwrap_or_else(|| "unknown".to_owned());
         let access = match device.access {
@@ -201,64 +276,4 @@ fn list_devices() -> anyhow::Result<()> {
     }
 
     Ok(())
-}
-
-fn check() -> anyhow::Result<()> {
-    let report = Report::gather()?;
-
-    println!("device access   {}", describe_devices(&report));
-    match &report.compositor {
-        CompositorReport::Unreachable(error) => {
-            println!("layer shell     unknown: {error}");
-            println!("keymap          unknown: {error}");
-        }
-        CompositorReport::Reachable {
-            layer_shell,
-            seat,
-            keymap,
-        } => {
-            println!(
-                "layer shell     {}",
-                if *layer_shell {
-                    "available"
-                } else {
-                    "missing, the overlay cannot be drawn"
-                }
-            );
-            println!(
-                "keymap          {}",
-                describe_keymap(keymap, seat.as_deref())
-            );
-        }
-    }
-
-    if report.is_usable() {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!("clack would not run here"))
-    }
-}
-
-fn describe_devices(report: &Report) -> String {
-    match (report.keyboards(), report.denied()) {
-        (0, 0) => "no keyboard found".to_owned(),
-        (0, denied) => format!(
-            "no readable keyboard, {denied} device(s) denied; install packaging/65-clack.rules"
-        ),
-        (found, 0) => format!("{found} keyboard(s) readable"),
-        (found, denied) => format!("{found} keyboard(s) readable, {denied} denied"),
-    }
-}
-
-fn describe_keymap(keymap: &KeymapSource, seat: Option<&str>) -> String {
-    let seat = seat.unwrap_or("unnamed seat");
-    match keymap {
-        KeymapSource::Compositor { bytes } => {
-            format!("{bytes} bytes from the compositor, seat {seat}")
-        }
-        KeymapSource::Unreadable(error) => {
-            format!("the compositor sent one but it could not be read: {error}")
-        }
-        KeymapSource::Absent => "the compositor sent none without keyboard focus".to_owned(),
-    }
 }

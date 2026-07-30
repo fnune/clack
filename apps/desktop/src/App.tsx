@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   api,
+  type Desktop,
   type Diagnosis,
   type Overlay,
   type Preview,
   type Settings,
   type Status,
-  type Tray,
 } from "./ipc";
 
 const EMPTY_STATUS: Status = { running: false, failure: null };
+
+/// IEC 5010, drawn as geometry rather than a full circle with the gap covered
+/// over: the arc simply stops where the stem passes through.
+function PowerRing() {
+  return (
+    <svg className="power" viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M 33 14.3 A 14 14 0 1 1 15 14.3" />
+      <path d="M 24 7 V 23" />
+    </svg>
+  );
+}
 
 /// Pango describes a font as family, style and size in one string; the preview
 /// only needs the family.
@@ -104,8 +115,8 @@ export function App() {
   const editOverlay = (change: Partial<Overlay>) =>
     save({ ...settings, overlay: { ...settings.overlay, ...change } });
 
-  const editTray = (change: Partial<Tray>) =>
-    save({ ...settings, tray: { ...settings.tray, ...change } });
+  const editDesktop = (change: Partial<Desktop>) =>
+    save({ ...settings, desktop: { ...settings.desktop, ...change } });
 
   const toggle = () =>
     void attempt(async () => {
@@ -123,10 +134,10 @@ export function App() {
           type="button"
           role="switch"
           aria-checked={status.running}
+          aria-label="Show keystrokes"
           onClick={toggle}
         >
-          <span className="name">Show keystrokes</span>
-          <span className="switch" aria-hidden="true" />
+          <PowerRing />
         </button>
       </div>
 
@@ -162,6 +173,7 @@ export function App() {
         <div className="preview">
           <span className="pill" style={{ fontFamily: pangoFamily(settings.overlay.font) }}>
             {preview?.runs.map((run, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: a run has no identity beyond where it sits in the line
               <span className={run.kind} key={`${run.kind}-${index}-${run.text}`}>
                 {run.text}
               </span>
@@ -285,8 +297,8 @@ export function App() {
             <span>Start in the tray, without this window</span>
             <input
               type="checkbox"
-              checked={settings.tray.start_hidden}
-              onChange={(event) => editTray({ start_hidden: event.target.checked })}
+              checked={settings.desktop.start_hidden}
+              onChange={(event) => editDesktop({ start_hidden: event.target.checked })}
             />
           </label>
 
@@ -294,12 +306,28 @@ export function App() {
             <span>Start showing keystrokes straight away</span>
             <input
               type="checkbox"
-              checked={settings.tray.start_overlay}
-              onChange={(event) => editTray({ start_overlay: event.target.checked })}
+              checked={settings.desktop.start_overlay}
+              onChange={(event) => editDesktop({ start_overlay: event.target.checked })}
             />
           </label>
         </div>
       </section>
+
+      <footer>
+        <button
+          className="linkish"
+          type="button"
+          onClick={() =>
+            void attempt(async () => {
+              const defaults = await api.resetSettings();
+              setSettings(defaults);
+              setPreview(await api.preview(defaults));
+            })
+          }
+        >
+          Reset to defaults
+        </button>
+      </footer>
     </main>
   );
 }

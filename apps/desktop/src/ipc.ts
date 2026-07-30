@@ -13,7 +13,7 @@ export type Overlay = {
   symbol_overrides: Record<string, string>;
 };
 
-export type Tray = {
+export type Desktop = {
   start_hidden: boolean;
   start_overlay: boolean;
 };
@@ -36,7 +36,7 @@ export type Preview = {
 
 export type Settings = {
   overlay: Overlay;
-  tray: Tray;
+  desktop: Desktop;
 };
 
 export type Status = {
@@ -111,7 +111,7 @@ function optionalText(source: Record<string, unknown>, name: string): string | n
 export function parseSettings(value: unknown): Settings {
   const source = fields(value);
   const overlay = fields(source.overlay);
-  const tray = fields(source.tray);
+  const desktop = fields(source.desktop);
 
   return {
     overlay: {
@@ -123,9 +123,9 @@ export function parseSettings(value: unknown): Settings {
       symbols: flag(overlay, "symbols"),
       symbol_overrides: table(overlay, "symbol_overrides"),
     },
-    tray: {
-      start_hidden: flag(tray, "start_hidden"),
-      start_overlay: flag(tray, "start_overlay"),
+    desktop: {
+      start_hidden: flag(desktop, "start_hidden"),
+      start_overlay: flag(desktop, "start_overlay"),
     },
   };
 }
@@ -214,6 +214,7 @@ export const api = {
   saveSettings: async (settings: Settings): Promise<void> => {
     await invoke("save_settings", { settings });
   },
+  resetSettings: async (): Promise<Settings> => parseSettings(await invoke("reset_settings")),
   start: async (settings: Settings): Promise<Status> =>
     parseStatus(await invoke("start", { settings })),
   stop: async (): Promise<Status> => parseStatus(await invoke("stop")),

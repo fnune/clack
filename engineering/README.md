@@ -149,9 +149,9 @@ The baselines below are the floor, not the ceiling.
 - Testing: the built-in test harness is the default. `cargo nextest` for the run-time gain on larger suites, `insta` for snapshot assertions over the display model, which is where snapshot testing genuinely pays.
 - Dependency updates via [Renovate](https://docs.renovatebot.com/). Weekly batch, 7 day minimum release age, no auto-merge. Security advisories handled same-day.
 
-### TypeScript, in the tray app
+### TypeScript, in the desktop app
 
-The tray app is a Tauri shell around the library. Its Rust side holds the logic; the web view is a form. Keep it that way, and the same UI code can front a different transport later.
+The desktop app is a Tauri shell around the library. Its Rust side holds the logic; the web view is a form. Keep it that way, and the same UI code can front a different transport later.
 
 - Strict typing always. `strict: true` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noUnusedLocals`, and `noUnusedParameters`.
 - Relaxing strictness is a code smell and is fixed, not papered over. `any`, `@ts-ignore`, `@ts-expect-error` without explanation, and non-null assertions all count. Biome flags the common ones.

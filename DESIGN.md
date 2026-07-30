@@ -21,7 +21,7 @@ Four candidates. Only one works.
 
 So Clack reads the kernel devices, and the README says so plainly.
 
-**Privileges.** A udev `uaccess` rule is the default. On NixOS the flake's module puts it in `services.udev.packages`; everywhere else `clack --install-rule` writes it through polkit, which prompts once and leaves nothing elevated. Installing the package without either step does nothing, because udev only reads rules a system has been told about.
+**Privileges.** A udev `uaccess` rule is the default. On NixOS the flake's module puts it in `services.udev.packages`; everywhere else `clack --grant-access` writes it through polkit, which prompts once and leaves nothing elevated. Installing the package without either step does nothing, because udev only reads rules a system has been told about.
 
 The rule itself: logind grants an ACL to the active seat's user, revoked at logout. The file must sort after `60-input-id.rules`, which sets `ID_INPUT_KEYBOARD`, and before `73-seat-late.rules`, which applies the ACL. Hence `65-`. Rejected: `input` group membership, which is permanent and seat-independent; setuid, which is hard to audit. A pkexec helper passing read-only fds over `SCM_RIGHTS` remains the fallback for users who will not install a rule.
 
@@ -93,18 +93,37 @@ Three crates, so that "the CLI is one consumer among several" is enforced by the
 
 `clack-cli` parses flags and formats output. It holds no logic that a GUI would need to reimplement.
 
-`settings` owns the file format, at `$XDG_CONFIG_HOME/clack/config.toml`. It is deliberately a separate type from `Config`: the file is a wire format that can be half-written, out of date, or wrong, and `to_config` is where it becomes something a session can run. The command line and the tray both go through it, so they cannot drift apart. Unknown keys are rejected rather than ignored, and a file that exists but cannot be parsed is an error rather than a silent reset to defaults.
+`settings` owns the file format, at `$XDG_CONFIG_HOME/clack/config.toml`. It is deliberately a separate type from `Config`: the file is a wire format that can be half-written, out of date, or wrong, and `to_config` is where it becomes something a session can run. The command line and the desktop app both go through it, so they cannot drift apart. Unknown keys are rejected rather than ignored, and a file that exists but cannot be parsed is an error rather than a silent reset to defaults.
 
 Modules in `clack`: `input` enumerates and reads devices, reporting per-device access so a permission failure can be explained. `keymap` fetches and compiles the keymap and resolves key events. `render` owns the layer surface and paints with cairo and pango. `text` writes plain lines to any writer, and doubles as the smallest example of implementing `Surface`.
 
-## The tray app
+## The desktop app
 
-`apps/tray` is a Tauri shell around the library, kept out of the Cargo workspace so the CLI's build and CI stay free of a browser engine. Its Rust side runs a `Session` on a background thread and holds a `Handle`; the web view is a form.
+`apps/desktop` is a Tauri shell around the library, kept out of the Cargo workspace so the CLI's build and CI stay free of a browser engine. Its Rust side runs a `Session` on a background thread and holds a `Handle`; the web view is a form.
 
 Two host quirks it works around, neither a choice:
 
 - GTK3 has no `xdg-decoration` support, so on Wayland it always draws its own titlebar, which looks foreign on KDE. Running under XWayland gets the desktop's own decorations instead.
-- On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. `scripts/tray.sh` routes it through nixGL.
+- On a non-NixOS host, the Nix build of webkitgtk cannot reach the system GPU drivers and the web view stays blank. `scripts/desktop.sh` routes it through nixGL.
+
+## Distribution
+
+Nix builds every check, but nothing shipped to users comes out of it. An AppImage has to bundle the
+host distribution's own libraries, and the plain binary wants the oldest glibc available so it runs
+on more than one distribution, so both release artefacts are built against Ubuntu instead.
+
+The command line binary links cairo, pango and libxkbcommon dynamically. Any machine running a
+Wayland desktop already has them, and statically linking that C stack is not worth what it costs.
+The AppImage bundles everything, including a browser engine.
+
+An AppImage also breaks the way `--grant-access` works. It re-executes itself through polkit, but
+an AppImage runs from a FUSE mount that only the user who started it can read, so root cannot
+execute anything there. When `$APPIMAGE` is set, Clack hands polkit a shell script instead. Both
+the rule and its path are compile-time constants, so nothing a caller supplies reaches it.
+
+Versions live in two Cargo manifests, because the desktop app is outside the workspace and cannot
+inherit one. `scripts/set-version.sh` writes both, and `just release` calls it, prepends the
+changelog with git-cliff, and pushes a tag that CI turns into a draft release.
 
 ## Testing
 

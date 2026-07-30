@@ -1,4 +1,4 @@
-//! The file behind both the command line and the tray, so the two cannot
+//! The file behind both the command line and the desktop app, so the two cannot
 //! disagree about what Clack is configured to do.
 
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ const MAX_MARGIN: i32 = 4000;
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
     pub overlay: Overlay,
-    pub tray: Tray,
+    pub desktop: Desktop,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -42,10 +42,10 @@ pub struct Overlay {
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct Tray {
+pub struct Desktop {
     /// Start in the tray, without opening the settings window.
     pub start_hidden: bool,
-    /// Start showing keystrokes as soon as the tray app opens.
+    /// Start showing keystrokes as soon as the app opens.
     pub start_overlay: bool,
 }
 
@@ -170,7 +170,7 @@ mod tests {
 
         assert_eq!(settings.overlay.margin, 12);
         assert_eq!(settings.overlay.font, Overlay::default().font);
-        assert_eq!(settings.tray, Tray::default());
+        assert_eq!(settings.desktop, Desktop::default());
     }
 
     #[test]
@@ -192,7 +192,7 @@ mod tests {
                 symbols: true,
                 symbol_overrides: HashMap::from([("Tab".to_owned(), "→".to_owned())]),
             },
-            tray: Tray {
+            desktop: Desktop {
                 start_hidden: true,
                 start_overlay: true,
             },

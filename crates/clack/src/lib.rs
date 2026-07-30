@@ -9,7 +9,38 @@
 //! ```
 //!
 //! Anything implementing [`Surface`] can take the overlay's place, which is how
-//! a terminal, a tray applet, or a browser would each show the same keystrokes.
+//! a terminal, a tray applet, or a browser would each show the same keystrokes:
+//!
+//! ```no_run
+//! use clack::{Config, Frame, LiveSession, Surface};
+//!
+//! struct Caption(String);
+//!
+//! impl Surface for Caption {
+//!     type Error = std::convert::Infallible;
+//!
+//!     fn present(&mut self, frame: &Frame) -> Result<(), Self::Error> {
+//!         self.0 = frame.runs.iter().map(|run| run.text.as_str()).collect();
+//!         Ok(())
+//!     }
+//! }
+//!
+//! let config = Config::default();
+//! let mut session = LiveSession::with_surface(Caption(String::new()), &config)?;
+//! let handle = session.handle();
+//!
+//! std::thread::spawn(move || {
+//!     handle.pause();
+//!     handle.resume();
+//!     handle.stop();
+//! });
+//!
+//! session.run()?;
+//! # Ok::<(), clack::SessionError>(())
+//! ```
+//!
+//! [`Handle`] is the only thing that crosses threads. Reading, naming and
+//! drawing all happen on the thread that called `run`.
 
 #![cfg_attr(
     test,
@@ -41,5 +72,5 @@ pub use clack_core::{
 pub use config::{Anchor, Config, Style};
 pub use diagnostics::{CompositorReport, KeymapSource, Report};
 pub use session::{Handle, LiveSession, Session, SessionError, State};
-pub use settings::{Overlay, Settings, SettingsError, Tray};
+pub use settings::{Desktop, Overlay, Settings, SettingsError};
 pub use text::TextSurface;
