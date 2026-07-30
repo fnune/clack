@@ -196,8 +196,12 @@ main {
 
 /* The cap is on the content, not on the thing that scrolls: capping the scroller
    would put its scrollbar wherever the column ended rather than at the window's
-   edge. */
+   edge.
+   `flex: none` because these are items of a column that is now bounded, and a flex
+   item's instinct is to shrink to fit rather than let its container scroll. The
+   switch, whose height is its plate's, collapsed to a line. */
 main > * {
+  flex: none;
   width: 100%;
   max-width: 560px;
   margin-inline: auto;
