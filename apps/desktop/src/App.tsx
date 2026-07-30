@@ -45,6 +45,53 @@ function askedInFull(backup: string | null): string {
     : `Reset everything? A copy of your current settings is kept at ${backup}`;
 }
 
+/// A number that is being typed is text, not a number: half-written it is empty,
+/// or a bare minus, or ends in a point, and `Number` turns the first of those into
+/// zero. Committing that put a 0 in the box that every following digit had to
+/// follow. So the text stands while it is being edited, only parseable values are
+/// committed, and letting go hands the box back to whatever was stored.
+function NumberField({
+  id,
+  value,
+  unit,
+  min,
+  max,
+  step,
+  onCommit,
+}: {
+  readonly id: string;
+  readonly value: number;
+  readonly unit: string;
+  readonly min: number;
+  readonly max: number;
+  readonly step?: number;
+  readonly onCommit: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <span className="field">
+      <input
+        id={id}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={draft ?? String(value)}
+        onChange={(event) => {
+          const text = event.target.value;
+          setDraft(text);
+
+          const parsed = Number(text);
+          if (text !== "" && Number.isFinite(parsed)) onCommit(parsed);
+        }}
+        onBlur={() => setDraft(null)}
+      />
+      <span className="suffix">{unit}</span>
+    </span>
+  );
+}
+
 /// Pango describes a font as family, style and size in one string; the preview
 /// only needs the family.
 function pangoFamily(font: string): string {
@@ -291,36 +338,32 @@ export function App() {
             </span>
           </div>
 
-          <label className="row">
+          <label className="row" htmlFor="margin">
             <span>Distance from edge</span>
             <span className="value">
-              <span className="field">
-                <input
-                  type="number"
-                  min={0}
-                  max={4000}
-                  value={settings.overlay.margin}
-                  onChange={(event) => editOverlay({ margin: Number(event.target.value) })}
-                />
-                <span className="suffix">px</span>
-              </span>
+              <NumberField
+                id="margin"
+                value={settings.overlay.margin}
+                unit="px"
+                min={0}
+                max={4000}
+                onCommit={(margin) => editOverlay({ margin })}
+              />
             </span>
           </label>
 
-          <label className="row">
+          <label className="row" htmlFor="timeout">
             <span>Time on screen</span>
             <span className="value">
-              <span className="field">
-                <input
-                  type="number"
-                  min={0.2}
-                  max={30}
-                  step={0.1}
-                  value={settings.overlay.timeout_seconds}
-                  onChange={(event) => editOverlay({ timeout_seconds: Number(event.target.value) })}
-                />
-                <span className="suffix">s</span>
-              </span>
+              <NumberField
+                id="timeout"
+                value={settings.overlay.timeout_seconds}
+                unit="s"
+                min={0.2}
+                max={30}
+                step={0.1}
+                onCommit={(timeout_seconds) => editOverlay({ timeout_seconds })}
+              />
             </span>
           </label>
         </div>
