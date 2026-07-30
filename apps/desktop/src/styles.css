@@ -343,9 +343,12 @@ h2 {
   background: var(--surface);
 }
 
+/* The label column is `minmax(0, ...)` so a narrow window wraps the label
+   instead of pushing the control off the right edge: a bare `1fr` refuses to go
+   below the label's min-content width. */
 .row {
   display: grid;
-  grid-template-columns: 1fr 168px;
+  grid-template-columns: minmax(0, 1fr) 168px;
   align-items: center;
   gap: 12px;
   min-height: 38px;
@@ -355,7 +358,7 @@ h2 {
 /* A checkbox is a mark rather than a field, so it keeps its right edge with
    the others but gives its label the room it needs. */
 .row.check {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .row + .row {
@@ -375,7 +378,7 @@ h2 {
 /* The verdict leads the list: the answer first, the readings that justify it
    underneath. */
 .verdict {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   padding: 9px 12px;
   color: var(--warn);

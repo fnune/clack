@@ -13,8 +13,10 @@
       {
         "label": "main",
         "title": "Clack",
-        "width": 450,
-        "height": 680,
+        "width": 500,
+        "height": 900,
+        "minWidth": 440,
+        "minHeight": 460,
         "resizable": true,
         "visible": false
       }
