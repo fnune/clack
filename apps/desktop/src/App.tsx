@@ -146,6 +146,12 @@ export function App() {
           role="switch"
           aria-checked={status.running}
           aria-label="Show keystrokes"
+          disabled={diagnosis !== null && !diagnosis.usable && !status.running}
+          title={
+            diagnosis !== null && !diagnosis.usable
+              ? verdict(diagnosis).headline
+              : "Show keystrokes"
+          }
           onClick={toggle}
         >
           <PowerRing />

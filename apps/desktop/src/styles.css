@@ -147,8 +147,13 @@ main {
   background: color-mix(in srgb, var(--accent) 5%, var(--surface));
 }
 
-.control:hover {
+.control:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
+/* Nothing to switch on, so the control says so by not offering itself. */
+.control:disabled {
+  cursor: default;
 }
 
 .frame.running .control:hover {
@@ -205,12 +210,18 @@ main {
    `.control:hover .power` weighs the same as the running rule and would
    otherwise replace the accent with this grey while lit. When it is on, the
    plate alone carries the hover. */
-.frame:not(.running) .control:hover .power {
+.frame:not(.running) .control:hover:not(:disabled) .power {
   stroke: color-mix(in srgb, var(--ink) 45%, var(--off));
 }
 
 .control:active .power {
   scale: 0.96;
+}
+
+/* Last of the ring's rules, so a control with nothing to switch stays dim
+   whatever else is going on around it. */
+.control:disabled .power {
+  stroke: color-mix(in srgb, var(--off) 45%, var(--surface));
 }
 
 /* The overlay, as it will actually look. */
@@ -335,6 +346,7 @@ footer {
   justify-content: flex-end;
   gap: 12px;
   color: var(--ink-quiet);
+  white-space: nowrap;
 }
 
 /* One line, in the place the button that raised it was, so asking moves nothing:
@@ -412,8 +424,11 @@ h2 {
 
 /* The verdict leads the list: the answer first, the readings that justify it
    underneath. */
+/* The verdict is a sentence and the action is two words, so the sentence takes
+   the room that is left and the action keeps its own. The other way round, an
+   `auto` headline refuses to wrap and runs straight through the action. */
 .verdict {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 16px;
   padding: 9px 12px;
   color: var(--warn);
@@ -423,6 +438,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;
   font-weight: 600;
 }
 
@@ -459,6 +475,7 @@ h2 {
 
 .verdict .mark {
   display: grid;
+  flex: none;
   place-items: center;
   width: 17px;
   height: 17px;
