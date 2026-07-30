@@ -67,34 +67,40 @@
 
 /* The window is transparent so that its corners can be rounded here rather than
    left square by a title bar it does not have. */
-html {
+/* Both left without a background of their own. A background on the body, with none
+   on the html, is taken for the canvas and painted across the whole window,
+   ignoring any radius the body has and leaving nothing transparent. */
+html,
+body {
   height: 100%;
+  margin: 0;
   background: transparent;
 }
 
-/* The body is the window: it carries the rounded edge and clips to it, and the
-   content scrolls inside. Painting that edge on the document instead left the
-   scrollbar outside it, because the document's scrollbar sits beyond the box any
-   background or fixed element of its own can reach. */
 body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--page);
   color: var(--ink);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
+/* The window Clack draws for itself: it carries the rounded edge, clips to it, and
+   holds the strip above the part that scrolls. React mounts here, so this and not
+   the body is what the content actually sits in. */
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--page);
+}
+
 /* A desktop that frames the window draws the corners, and rounding inside its
    square frame leaves a sliver of whatever is behind it. Filling the screen leaves
    the same sliver, against the screen's own edges. */
-:root[data-decorated="true"] body,
-:root[data-filling="true"] body {
+:root[data-decorated="true"] #root,
+:root[data-filling="true"] #root {
   border: 0;
   border-radius: 0;
 }
