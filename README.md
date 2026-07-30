@@ -8,7 +8,7 @@
 # Clack
 
 Shows the keys you press, on screen, for screencasts, demos and teaching. For Wayland
-desktops, where [screenkey](https://www.thregr.org/wavexx/software/screenkey/) cannot go.
+desktops.
 
 [![CI](https://github.com/fnune/clack/actions/workflows/ci.yml/badge.svg)](https://github.com/fnune/clack/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/fnune/clack?label=release)](https://github.com/fnune/clack/releases/latest)
