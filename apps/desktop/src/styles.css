@@ -324,9 +324,17 @@ section {
 footer {
   display: flex;
   justify-content: flex-end;
-  gap: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--line);
+}
+
+/* The state is reported; only the way out of it is a link. */
+.access {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  color: var(--ink-quiet);
 }
 
 /* One line, in the place the button that raised it was, so asking moves nothing:

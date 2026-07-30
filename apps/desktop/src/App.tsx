@@ -160,21 +160,39 @@ export function App() {
               <span className="mark" aria-hidden="true" />
               {verdict(diagnosis).headline}
             </span>
-            <button
-              className="linkish"
-              type="button"
-              disabled={diagnosis?.ruleInstalled !== false}
-              title={diagnosis?.rulePath}
-              onClick={() =>
-                void attempt(async () => {
-                  setDiagnosis(await api.grantAccess());
-                })
-              }
-            >
-              {diagnosis?.ruleInstalled === false
-                ? "Allow keyboard access"
-                : "Keyboard access allowed"}
-            </button>
+            <span className="access">
+              {diagnosis?.ruleInstalled === true ? (
+                <>
+                  Keyboard access allowed
+                  <button
+                    className="linkish"
+                    type="button"
+                    title={diagnosis.rulePath}
+                    onClick={() =>
+                      void attempt(async () => {
+                        setDiagnosis(await api.revokeAccess());
+                      })
+                    }
+                  >
+                    Revoke
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="linkish"
+                  type="button"
+                  disabled={diagnosis === null}
+                  title={diagnosis?.rulePath}
+                  onClick={() =>
+                    void attempt(async () => {
+                      setDiagnosis(await api.grantAccess());
+                    })
+                  }
+                >
+                  Allow keyboard access
+                </button>
+              )}
+            </span>
           </div>
         </div>
       </section>
@@ -349,24 +367,9 @@ export function App() {
             </button>
           </div>
         ) : (
-          <>
-            <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
-              Reset to defaults
-            </button>
-            <button
-              className="linkish"
-              type="button"
-              disabled={diagnosis?.ruleInstalled !== true}
-              title={diagnosis?.rulePath}
-              onClick={() =>
-                void attempt(async () => {
-                  setDiagnosis(await api.revokeAccess());
-                })
-              }
-            >
-              Remove keyboard access
-            </button>
-          </>
+          <button className="linkish" type="button" onClick={() => setConfirmingReset(true)}>
+            Reset to defaults
+          </button>
         )}
       </footer>
     </main>
