@@ -45,13 +45,17 @@ function pangoFamily(font: string): string {
 /// it.
 function verdict(diagnosis: Diagnosis | null): Verdict {
   if (diagnosis === null) {
-    return { headline: "Checking", detail: "Working out what Clack can do here.", ready: false };
+    return {
+      headline: "Checking what Clack can do here",
+      detail: "Looking for a keyboard to read and a way to draw the overlay.",
+      ready: false,
+    };
   }
 
   if (diagnosis.usable) {
     return {
-      headline: "Ready",
-      detail: "Clack can read your keyboard and draw the overlay.",
+      headline: "Clack can read your keyboard",
+      detail: "Clack can read your keyboard and draw the overlay above other windows.",
       ready: true,
     };
   }
@@ -59,21 +63,21 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
   if (diagnosis.keyboards === 0) {
     return diagnosis.ruleInstalled
       ? {
-          headline: "No keyboard to read",
+          headline: "No keyboard Clack can read",
           detail:
-            "Access is allowed, but no keyboard is readable yet. Log out and back in, or plug one in.",
+            "Reading keyboards is allowed, but none is readable yet. Log out and back in, or plug one in.",
           ready: false,
         }
       : {
-          headline: "Permission needed",
-          detail: "Clack needs permission to read your keyboard.",
+          headline: "Clack needs your permission",
+          detail: "Clack needs your permission to read your keyboard.",
           ready: false,
         };
   }
 
   if (!diagnosis.layerShell) {
     return {
-      headline: "No overlay here",
+      headline: "This desktop cannot show the overlay",
       detail:
         "This desktop has no layer shell, so the overlay cannot be drawn above other windows.",
       ready: false,
@@ -81,7 +85,7 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
   }
 
   return {
-    headline: "No layout shared",
+    headline: "This desktop shared no keyboard layout",
     detail: "This desktop did not share its keyboard layout, so keys cannot be named.",
     ready: false,
   };
@@ -215,7 +219,7 @@ export function App() {
                 })
               }
             >
-              {diagnosis?.ruleInstalled === true ? "Revoke" : "Allow"}
+              {diagnosis?.ruleInstalled === true ? "Revoke access" : "Allow access"}
             </button>
           </div>
         </div>
