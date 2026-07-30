@@ -216,6 +216,29 @@ export function App() {
     };
   }, []);
 
+  /// Corners are only worth rounding while there is something behind them. Filling
+  /// the screen puts the window's edges against the screen's, where a radius
+  /// leaves a sliver of desktop in each corner instead of softening anything.
+  /// There is no media query for this, so the window has to be asked.
+  useEffect(() => {
+    const own = getCurrentWindow();
+
+    const sync = () =>
+      void (async () => {
+        const filling = (await own.isMaximized()) || (await own.isFullscreen());
+        document.documentElement.dataset.filling = String(filling);
+      })();
+
+    sync();
+    const listening = own.onResized(sync);
+
+    return () => {
+      void listening.then((stop) => {
+        stop();
+      });
+    };
+  }, []);
+
   /// A session can fail long after the click that started it, so its failure
   /// arrives with a status event rather than from a call anyone is awaiting.
   useEffect(() => {

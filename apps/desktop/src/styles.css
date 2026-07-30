@@ -88,8 +88,10 @@ body::before {
 }
 
 /* A desktop that frames the window draws the corners, and rounding inside its
-   square frame leaves a sliver of whatever is behind it. */
-:root[data-decorated="true"] body::before {
+   square frame leaves a sliver of whatever is behind it. Filling the screen leaves
+   the same sliver, against the screen's own edges. */
+:root[data-decorated="true"] body::before,
+:root[data-filling="true"] body::before {
   border: 0;
   border-radius: 0;
 }
