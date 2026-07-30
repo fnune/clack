@@ -191,6 +191,11 @@ main {
   flex-direction: column;
   gap: 22px;
   overflow-y: auto;
+  /* The scrollbar takes its width from the right side alone, so the content sat
+     nearer the left edge than the right. Reserving the same room on both edges,
+     whether or not there is anything to scroll, is the only way the two stay
+     equal. */
+  scrollbar-gutter: stable both-edges;
   padding: 6px 16px 16px;
 }
 
