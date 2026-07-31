@@ -558,7 +558,7 @@ dependencies = [
 
 [[package]]
 name = "clack"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "cairo-rs 0.21.5",
  "clack-core",
@@ -576,11 +576,11 @@ dependencies = [
 
 [[package]]
 name = "clack-core"
-version = "0.2.1"
+version = "0.2.2"
 
 [[package]]
 name = "clack-desktop"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "cairo-rs 0.21.5",
  "clack",

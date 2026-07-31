@@ -1,3 +1,9 @@
+## [0.2.2] - 2026-07-31
+
+### Bug fixes
+
+- *(ci)* Point the bundle's icon at one size rather than whichever came first
+
 ## [0.2.1] - 2026-07-31
 
 ### Features
