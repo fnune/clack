@@ -158,6 +158,10 @@ rm -f "$appdir"/usr/lib/libwayland-*.so.* # mesa loads the host's and needs its 
 sed -i 's|^export GDK_BACKEND=x11|export GDK_BACKEND="${GDK_BACKEND:-x11}"|' \
     "$appdir/apprun-hooks/linuxdeploy-plugin-gtk.sh"
 
+# linuxdeploy points the bundle's own icon at whichever size the directory
+# happened to list first, which is not the same order on two machines.
+ln -sf usr/share/icons/hicolor/512x512/apps/clack-desktop.png "$appdir/clack-desktop.png"
+
 find "$appdir" -exec touch --no-dereference --date="@$epoch" {} +
 
 appimagetool \
