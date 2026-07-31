@@ -10,6 +10,10 @@ node_sha256="55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
 rustup_version="1.29.0"
 rustup_sha256="4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
 
+# Every timestamp the bundle would otherwise take from the clock, so the same
+# source produces the same bytes here and in CI.
+epoch=1700000000
+
 appimagetool_version="1.9.0"
 appimagetool_sha256="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1"
 
@@ -154,7 +158,13 @@ rm -f "$appdir"/usr/lib/libwayland-*.so.* # mesa loads the host's and needs its 
 sed -i 's|^export GDK_BACKEND=x11|export GDK_BACKEND="${GDK_BACKEND:-x11}"|' \
     "$appdir/apprun-hooks/linuxdeploy-plugin-gtk.sh"
 
-appimagetool "$appdir" "$dist/Clack-x86_64.AppImage"
+find "$appdir" -exec touch --no-dereference --date="@$epoch" {} +
+
+appimagetool \
+    --no-appstream \
+    --mksquashfs-opt -mkfs-time --mksquashfs-opt "$epoch" \
+    --mksquashfs-opt -all-time --mksquashfs-opt "$epoch" \
+    "$appdir" "$dist/Clack-x86_64.AppImage"
 
 cd "$dist"
 sha256sum clack-linux-amd64 Clack-x86_64.AppImage > checksums.txt

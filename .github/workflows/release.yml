@@ -48,6 +48,18 @@ jobs:
 
       - run: ./scripts/build-release.sh
 
+      - name: Check the AppImage is the one the flake pins
+        run: |
+          committed=$(cat packaging/appimage.sha256)
+          built=$(sha256sum dist/Clack-x86_64.AppImage | cut -d' ' -f1)
+
+          if [[ $committed != "$built" ]]; then
+            echo "This build does not match the AppImage the flake was told to expect."
+            echo "  committed: $committed"
+            echo "  built:     $built"
+            exit 1
+          fi
+
       - name: Write the release notes
         run: |
           curl -fsSL -o git-cliff.tar.gz \

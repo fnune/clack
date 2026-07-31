@@ -56,8 +56,8 @@
       nativeBuildInputsFor = pkgs: [ pkgs.pkg-config ];
 
       desktopRelease = {
-        version = "0.1.0";
-        hash = "sha256-wpdJLzuocfJ7mMEPhZaAYc1m6vJT2rG9FiiT6TlT9hY=";
+        version = (nixpkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
+        sha256 = nixpkgs.lib.fileContents ./packaging/appimage.sha256;
       };
 
       desktopFor =
@@ -65,7 +65,7 @@
         let
           src = pkgs.fetchurl {
             url = "https://github.com/fnune/clack/releases/download/v${desktopRelease.version}/Clack-x86_64.AppImage";
-            inherit (desktopRelease) hash;
+            inherit (desktopRelease) sha256;
           };
 
           extracted = pkgs.appimageTools.extract {

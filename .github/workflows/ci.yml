@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   check:
@@ -50,3 +53,29 @@ jobs:
       - run: nix develop ../.. --command pnpm check
       - run: nix develop ../.. --command pnpm typecheck
       - run: nix develop ../.. --command pnpm build
+
+  published:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Check the released AppImage is the one the flake pins
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          url="https://github.com/${{ github.repository }}/releases/download/v$version/Clack-x86_64.AppImage"
+
+          if ! curl -fsSLI "$url" >/dev/null; then
+            echo "v$version has no AppImage published yet, so there is nothing to check."
+            exit 0
+          fi
+
+          curl -fsSL -o published.AppImage "$url"
+          committed=$(cat packaging/appimage.sha256)
+          published=$(sha256sum published.AppImage | cut -d' ' -f1)
+
+          if [[ $committed != "$published" ]]; then
+            echo "The published AppImage is not the one Nix would be told to fetch."
+            echo "  committed: $committed"
+            echo "  published: $published"
+            exit 1
+          fi
