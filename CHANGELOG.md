@@ -1,3 +1,13 @@
+## [0.2.1] - 2026-07-31
+
+### Features
+
+- *(nix)* Pin the desktop app before the tag rather than after it
+
+### Bug fixes
+
+- *(desktop)* Say the status in what the window is wide enough to show
+
 ## [0.2.0] - 2026-07-31
 
 ### Features
