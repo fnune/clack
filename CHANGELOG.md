@@ -1,3 +1,20 @@
+## [0.2.0] - 2026-07-31
+
+### Features
+
+- Configure Clack from Nix, and say so when it is configured that way
+- *(nix)* Install the desktop app from its release, and ship the entry it needs
+
+### Bug fixes
+
+- *(ci)* Keep the release build's objects away from the ones Nix leaves
+- *(ci)* Keep the release cache out of the working tree
+- *(nix)* Run the app on the host, and keep its icon out of the tray's way
+
+### Refactor
+
+- Take the keymap out of the interface
+
 ## [0.1.0] - 2026-07-31
 
 ### Features
