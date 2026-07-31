@@ -196,13 +196,27 @@ the first time. The window follows the same signal.
 
 ## Distribution
 
-Nix builds every check, but nothing shipped to users comes out of it. An
-[AppImage](https://appimage.org/) has to bundle the host distribution's own libraries, and the plain
-binary wants the oldest glibc available so it runs on more than one distribution, so both release
-artefacts are built against Ubuntu.
+Nix builds every check, but nothing shipped to users comes out of it: a Nix build links against
+`/nix/store` and runs on no machine that lacks it. An [AppImage](https://appimage.org/) has to bundle
+the host distribution's own libraries, and the plain binary wants the oldest glibc available so it
+runs on more than one distribution, so both release artefacts are built against Ubuntu 22.04.
+
+That build is a container, not a runner. `scripts/build-release.sh` re-executes itself inside an
+image named by digest, so CI and a laptop produce the same artefacts from the same command, and a
+release can be tried before it is tagged. Everything the build reaches for is fixed at a version: an
+archive snapshot for apt, checksums for Node, rustup and appimagetool, a toolchain version in
+`rust-toolchain.toml`, and commits for the two linuxdeploy plugins Tauri would otherwise take from a
+branch that moves.
 
 - The command line binary links cairo, pango and libxkbcommon dynamically, since any machine running
   a Wayland desktop has them. The AppImage bundles everything, including a browser engine.
+- The indicator library is deployed by hand, with `linuxdeploy --library`. Clack's tray is the
+  libappindicator crate rather than Tauri's, so Tauri's bundler never learns that
+  `libayatana-appindicator3` has to travel with the app, and without it the app dies at startup
+  against any host copy built for a newer glib than the one inside.
+- The Wayland client library is then deleted from the AppImage. Mesa loads the host's copy and
+  expects the host's symbols with it, and an Ubuntu 22.04 copy travelling inside wins the lookup,
+  after which EGL cannot open a display at all.
 - An AppImage breaks `--grant-access`, which re-executes itself through polkit: an AppImage runs from
   a FUSE mount only the user who started it can read, so root cannot execute anything there. When
   `$APPIMAGE` is set, Clack hands polkit a shell script instead. Both the rule and its path are

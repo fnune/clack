@@ -1,4 +1,6 @@
 /target
+/.cache
+/dist
 /result
 /result-*
 /.direnv

@@ -4,18 +4,9 @@ on:
   push:
     tags: ["v*"]
 
-# Nix builds every check, but nothing shipped to users comes out of it. An
-# AppImage has to bundle the host distribution's own libraries, and the plain
-# binary wants the oldest glibc available so it runs on more than one
-# distribution, so both artefacts are built against Ubuntu instead.
 env:
-  APT_DEPENDENCIES: >-
-    libcairo2-dev
-    libglib2.0-dev
-    libpango1.0-dev
-    libxkbcommon-dev
-    pkg-config
   GIT_CLIFF_VERSION: "2.13.1"
+  GIT_CLIFF_SHA256: "9a1263f24e59a2f508c7b3d3283c9dea94a8bf697f96dbc18cc783cac6284546"
 
 jobs:
   wait-for-ci:
@@ -47,30 +38,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-  command-line:
+  release:
     needs: wait-for-ci
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - run: sudo apt-get update && sudo apt-get install -y $APT_DEPENDENCIES
-
-      - name: Build
-        run: |
-          cargo build --release --locked --package clack-cli
-          install -m755 target/release/clack clack-linux-amd64
-          sha256sum clack-linux-amd64 > checksums.txt
+      # Nix builds every check, but nothing shipped to users comes out of it: a
+      # Nix build links against /nix/store. The script builds inside a pinned
+      # Ubuntu 22.04 container instead, so the runner supplies nothing but a
+      # container runtime and a laptop can produce the same artefacts.
+      - run: ./scripts/build-release.sh
 
       - name: Write the release notes
         run: |
-          curl -sSfL "https://github.com/orhun/git-cliff/releases/download/v$GIT_CLIFF_VERSION/git-cliff-$GIT_CLIFF_VERSION-x86_64-unknown-linux-gnu.tar.gz" \
-            | tar xz --strip-components=1 "git-cliff-$GIT_CLIFF_VERSION/git-cliff"
+          curl -fsSL -o git-cliff.tar.gz \
+            "https://github.com/orhun/git-cliff/releases/download/v$GIT_CLIFF_VERSION/git-cliff-$GIT_CLIFF_VERSION-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$GIT_CLIFF_SHA256  git-cliff.tar.gz" | sha256sum --check --quiet
+          tar xzf git-cliff.tar.gz --strip-components=1 "git-cliff-$GIT_CLIFF_VERSION/git-cliff"
           ./git-cliff --latest --strip header > release-notes.md
           cat release-notes.md
 
@@ -80,54 +69,8 @@ jobs:
             --draft \
             --title "${{ github.ref_name }}" \
             --notes-file release-notes.md \
-            clack-linux-amd64 \
-            checksums.txt
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  appimage:
-    needs: command-line
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: apps/desktop/package.json
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: apps/desktop/pnpm-lock.yaml
-
-      - run: |
-          sudo apt-get update
-          sudo apt-get install -y $APT_DEPENDENCIES \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libssl-dev \
-            libwebkit2gtk-4.1-dev \
-            patchelf
-
-      - working-directory: apps/desktop
-        run: pnpm install --frozen-lockfile
-
-      - working-directory: apps/desktop
-        run: pnpm tauri build --bundles appimage
-
-      - name: Attach it to the release
-        run: |
-          appimage=$(find apps/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)
-          if [[ -z $appimage ]]; then
-            echo "No AppImage was produced"
-            exit 1
-          fi
-          mv "$appimage" Clack-x86_64.AppImage
-          gh release upload "${{ github.ref_name }}" Clack-x86_64.AppImage
+            dist/clack-linux-amd64 \
+            dist/Clack-x86_64.AppImage \
+            dist/checksums.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

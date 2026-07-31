@@ -23,6 +23,10 @@ e2e:
 overlay:
     ./scripts/headless-overlay.sh
 
+# What a release ships, built the same way CI builds it
+artifacts:
+    ./scripts/build-release.sh
+
 # Show what the next release's notes would say
 notes:
     git-cliff --unreleased
