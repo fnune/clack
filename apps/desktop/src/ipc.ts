@@ -45,6 +45,11 @@ export type Status = {
   failure: string | null;
 };
 
+export type SettingsFile = {
+  path: string;
+  writable: boolean;
+};
+
 export type Diagnosis = {
   keyboards: number;
   denied: number;
@@ -179,6 +184,14 @@ export function parseStatus(value: unknown): Status {
   };
 }
 
+export function parseSettingsFile(value: unknown): SettingsFile {
+  const source = fields(value);
+  return {
+    path: text(source, "path"),
+    writable: flag(source, "writable"),
+  };
+}
+
 export function parseDiagnosis(value: unknown): Diagnosis {
   const source = fields(value);
   return {
@@ -214,6 +227,7 @@ export const api = {
     await invoke("save_settings", { settings });
   },
   resetSettings: async (): Promise<Settings> => parseSettings(await invoke("reset_settings")),
+  settingsFile: async (): Promise<SettingsFile> => parseSettingsFile(await invoke("settings_file")),
   ready: async (): Promise<void> => {
     await invoke("ready");
   },

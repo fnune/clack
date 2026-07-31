@@ -8,6 +8,7 @@ import {
   type Overlay,
   type Preview,
   type Settings,
+  type SettingsFile,
   type Status,
 } from "./ipc";
 import { Logo } from "./logo";
@@ -214,6 +215,7 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const { notes, notify, dismiss } = useNotifications();
   const [backup, setBackup] = useState<string | null>(null);
+  const [file, setFile] = useState<SettingsFile | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const writing = useRef<number | null>(null);
 
@@ -238,6 +240,7 @@ export function App() {
       setStatus(await api.status());
       setDiagnosis(await api.diagnose());
       setBackup(await api.settingsBackupPath());
+      setFile(await api.settingsFile());
     }).finally(() => {
       setLoading(false);
       void api.ready();
@@ -413,6 +416,19 @@ export function App() {
                 {diagnosis?.ruleInstalled === true ? "Revoke access" : "Allow access"}
               </button>
             </div>
+
+            {file !== null && !file.writable && (
+              // Not a fault: someone chose to keep these settings elsewhere, and
+              // the window's job is to say what that means for a change made
+              // here rather than to complain about it.
+              <div className="row verdict kept" title={file.path}>
+                <span className="headline">
+                  <span className="mark" aria-hidden="true" />
+                  <span className="said">Settings are kept elsewhere</span>
+                </span>
+                <span className="value">Changes last until Clack quits</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -572,9 +588,15 @@ export function App() {
         <footer>
           {confirmingReset ? (
             <div className="confirm">
-              <p className="ask" title={askedInFull(backup)}>
-                Reset everything? A copy is kept at {backup ?? "a backup file"}
-              </p>
+              {file !== null && !file.writable ? (
+                // There is no file of Clack's to replace, so there is nothing to
+                // keep a copy of either.
+                <p className="ask">Reset everything? The file stays as it is</p>
+              ) : (
+                <p className="ask" title={askedInFull(backup)}>
+                  Reset everything? A copy is kept at {backup ?? "a backup file"}
+                </p>
+              )}
               <button className="linkish" type="button" onClick={() => setConfirmingReset(false)}>
                 Cancel
               </button>

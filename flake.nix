@@ -119,6 +119,151 @@
           };
         };
 
+      # The settings file, written from the same options both Clack's own
+      # programs read. It cannot install the udev rule, which is the system's to
+      # allow: use the NixOS module for that, or `clack --grant-access`.
+      homeManagerModules.default =
+        { config, lib, pkgs, ... }:
+        let
+          cfg = config.programs.clack;
+          toml = pkgs.formats.toml { };
+
+          # Only what was actually set reaches the file, so Clack's own defaults
+          # stay the one place they are written down.
+          stated =
+            attrs:
+            lib.filterAttrs (_: value: value != null) (
+              lib.mapAttrs (_: value: if lib.isAttrs value && !lib.isDerivation value then stated value else value) attrs
+            );
+
+          settings = lib.filterAttrs (_: section: section != { }) (stated cfg.settings);
+        in
+        {
+          options.programs.clack = {
+            enable = lib.mkEnableOption "Clack, a Wayland keystroke visualiser";
+
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
+              defaultText = lib.literalExpression "clack.packages.\${system}.default";
+              description = "Which build of Clack to install.";
+            };
+
+            settings = lib.mkOption {
+              default = { };
+              description = ''
+                What Clack reads from `$XDG_CONFIG_HOME/clack/config.toml`. Anything
+                left unset is left out of the file, so Clack's own default applies.
+
+                The file this generates belongs to the store and cannot be written
+                to, so the desktop app says as much and treats a change made in its
+                window as lasting until it quits.
+              '';
+              type = lib.types.submodule {
+                freeformType = toml.type;
+
+                options.overlay = lib.mkOption {
+                  default = { };
+                  description = "How the overlay is drawn.";
+                  type = lib.types.submodule {
+                    freeformType = toml.type;
+
+                    options = {
+                      font = lib.mkOption {
+                        type = lib.types.nullOr lib.types.str;
+                        default = null;
+                        example = "Iosevka Bold 30";
+                        description = "The Pango font description the keys are drawn in.";
+                      };
+
+                      margin = lib.mkOption {
+                        type = lib.types.nullOr lib.types.ints.unsigned;
+                        default = null;
+                        example = 96;
+                        description = "Distance from the anchored edge, in logical pixels.";
+                      };
+
+                      anchor = lib.mkOption {
+                        type = lib.types.nullOr (lib.types.enum [ "top" "bottom" ]);
+                        default = null;
+                        description = "Which edge of the screen the overlay sits against.";
+                      };
+
+                      timeout_seconds = lib.mkOption {
+                        type = lib.types.nullOr (lib.types.either lib.types.float lib.types.ints.unsigned);
+                        default = null;
+                        example = 1.5;
+                        description = "How long a keystroke stays on screen once typing stops.";
+                      };
+
+                      keymap = lib.mkOption {
+                        type = lib.types.nullOr lib.types.path;
+                        default = null;
+                        description = ''
+                          An XKB keymap to use instead of the compositor's own, which is
+                          the right answer almost always, since it is what you configured.
+                        '';
+                      };
+
+                      symbols = lib.mkOption {
+                        type = lib.types.nullOr lib.types.bool;
+                        default = null;
+                        description = "Whether keys with no letter of their own are drawn as glyphs.";
+                      };
+
+                      symbol_overrides = lib.mkOption {
+                        type = lib.types.nullOr (lib.types.attrsOf lib.types.str);
+                        default = null;
+                        example = lib.literalExpression ''{ Tab = "⇥"; }'';
+                        description = ''
+                          Replacements for single keys, by keysym name. An empty string
+                          hides one.
+                        '';
+                      };
+                    };
+                  };
+                };
+
+                options.desktop = lib.mkOption {
+                  default = { };
+                  description = "How the desktop app behaves.";
+                  type = lib.types.submodule {
+                    freeformType = toml.type;
+
+                    options = {
+                      start_hidden = lib.mkOption {
+                        type = lib.types.nullOr lib.types.bool;
+                        default = null;
+                        description = "Start in the tray, without opening the settings window.";
+                      };
+
+                      start_overlay = lib.mkOption {
+                        type = lib.types.nullOr lib.types.bool;
+                        default = null;
+                        description = "Start showing keystrokes as soon as the app opens.";
+                      };
+
+                      decorations = lib.mkOption {
+                        type = lib.types.nullOr lib.types.bool;
+                        default = null;
+                        description = "Whether the window wears the desktop's own title bar.";
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+
+          config = lib.mkIf cfg.enable {
+            home.packages = [ cfg.package ];
+
+            xdg.configFile."clack/config.toml" = lib.mkIf (settings != { }) {
+              source = toml.generate "clack-config.toml" settings;
+            };
+          };
+        };
+
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = [

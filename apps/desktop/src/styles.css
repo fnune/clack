@@ -747,7 +747,33 @@ h2 {
   rotate: 45deg;
 }
 
-.verdict:not(.ready) .mark::after {
+/* Settings kept by something else are a fact, not a fault, so the row is
+   ordinary text with a quiet dot rather than the amber a warning wears. */
+.verdict.kept {
+  color: var(--ink);
+}
+
+.verdict.kept .mark {
+  background: var(--ink-quiet);
+}
+
+.verdict.kept .value {
+  color: var(--ink-quiet);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.verdict.kept .mark::after {
+  width: 5px;
+  height: 5px;
+  margin: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--knob);
+  rotate: none;
+}
+
+.verdict:not(.ready):not(.kept) .mark::after {
   width: 2px;
   height: 9px;
   margin: 0;

@@ -39,6 +39,15 @@ pub struct Status {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SettingsFile {
+    pub path: String,
+    /// Whether Clack may write to it. A file Nix generates is a link into a
+    /// read-only store, so edits hold for the session and no longer.
+    pub writable: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Diagnosis {
     pub keyboards: usize,
     pub denied: usize,
@@ -59,6 +68,7 @@ pub fn run() {
             save_settings,
             reset_settings,
             settings_backup_path,
+            settings_file,
             ready,
             start,
             stop,
@@ -381,10 +391,35 @@ fn load_settings() -> Result<Settings, String> {
     Settings::load().map_err(|error| error.to_string())
 }
 
+/// Where the settings live and whether they are Clack's to change, so the window
+/// can say which of the two it is doing rather than reporting a failure for a
+/// file that was never meant to be written.
+#[tauri::command]
+fn settings_file() -> Result<SettingsFile, String> {
+    let path = clack::settings::path().map_err(|error| error.to_string())?;
+
+    Ok(SettingsFile {
+        writable: clack::settings::is_writable_at(&path),
+        path: path.display().to_string(),
+    })
+}
+
 #[tauri::command]
 fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     dress_window(&app, settings.desktop.decorations);
-    settings.save().map_err(|error| error.to_string())
+    keep(&settings)
+}
+
+/// A file someone else generates is left as it is. The change still holds for as
+/// long as Clack is running, which is what the window says it does.
+fn keep(settings: &Settings) -> Result<(), String> {
+    let path = clack::settings::path().map_err(|error| error.to_string())?;
+
+    if !clack::settings::is_writable_at(&path) {
+        return Ok(());
+    }
+
+    settings.save_to(&path).map_err(|error| error.to_string())
 }
 
 /// Where a reset would leave the settings it replaces, so the window can name it
@@ -396,9 +431,18 @@ fn settings_backup_path() -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
+/// With a file Clack may not write there is nothing to replace and nothing to
+/// keep a copy of, so the defaults are handed back for the session instead.
 #[tauri::command]
 fn reset_settings(app: AppHandle) -> Result<Settings, String> {
-    let settings = Settings::reset().map_err(|error| error.to_string())?;
+    let path = clack::settings::path().map_err(|error| error.to_string())?;
+
+    let settings = if clack::settings::is_writable_at(&path) {
+        Settings::reset_at(&path).map_err(|error| error.to_string())?
+    } else {
+        Settings::default()
+    };
+
     dress_window(&app, settings.desktop.decorations);
 
     Ok(settings)
@@ -423,7 +467,7 @@ fn ready(app: AppHandle) {
 
 #[tauri::command]
 fn start(app: AppHandle, settings: Settings) -> Result<Status, String> {
-    settings.save().map_err(|error| error.to_string())?;
+    keep(&settings)?;
     start_session(&app, &settings)?;
     publish(&app);
 

@@ -72,6 +72,32 @@ Elsewhere, `nix run github:fnune/clack`. Installing the package into a profile i
 its own, because udev only reads rules a system has been told about; the module handles that, and
 so does `--grant-access` below.
 
+With Home Manager, the same options write the settings file:
+
+```nix
+{
+  imports = [ inputs.clack.homeManagerModules.default ];
+
+  programs.clack = {
+    enable = true;
+    settings = {
+      overlay = {
+        font = "Iosevka Bold 30";
+        anchor = "top";
+        timeout_seconds = 1.5;
+        symbols = true;
+      };
+      desktop.start_hidden = true;
+    };
+  };
+}
+```
+
+Anything left unset is left out of the file, so Clack's own default applies. The file belongs to
+the Nix store and cannot be written to, so the desktop app says so and treats what you change in
+its window as lasting until it quits. Reading keyboards is still the system's to allow: use the
+NixOS module above, or `--grant-access` below.
+
 ## Letting Clack read your keyboard
 
 Clack reads the kernel's input devices, which on most systems needs permission your user does not
