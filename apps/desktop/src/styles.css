@@ -549,8 +549,8 @@ h2 {
 }
 
 /* The label column is `minmax(0, ...)` so a narrow window wraps the label
-   instead of pushing the control off the right edge: a bare `1fr` refuses to go
-   below the label's min-content width. */
+   instead of pushing the control off the right edge, or stacking the control
+   under it: a bare `1fr` refuses to go below the label's min-content width. */
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 168px;
@@ -919,38 +919,6 @@ button:focus-visible {
   gap: 10px;
   margin: 0;
   color: var(--ink-quiet);
-}
-
-/* Below this the two-column row cannot hold both a label and a control without
-   breaking the label across three lines, so the label takes the row and the
-   control sits under it. Last in the file on purpose: a container query carries
-   no specificity of its own, so it has to outrank the rules it overrides by
-   coming after them. */
-@container (max-width: 340px) {
-  .row {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: start;
-    row-gap: 4px;
-    padding: 10px 12px;
-  }
-
-  .field,
-  .radios,
-  .symbol,
-  .toggle,
-  .value {
-    justify-content: flex-start;
-    padding-right: 0;
-  }
-
-  .reading {
-    padding-right: 0;
-    text-align: left;
-  }
-
-  .linkish {
-    justify-self: start;
-  }
 }
 
 /* Notifications sit over the page rather than in it, so a failure never moves
