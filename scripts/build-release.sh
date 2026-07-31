@@ -41,8 +41,12 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
         exit 1
     }
 
-    cache="$root/.cache/release"
-    mkdir -p "$cache/cargo" "$cache/rustup" "$cache/pnpm" \
+    # Outside the repository, because apt runs as its own user inside the
+    # container and a rootless runtime maps that to a host id this one cannot
+    # read: left in the working tree, it stops Nix from copying the source at
+    # all.
+    cache="${XDG_CACHE_HOME:-$HOME/.cache}/clack/release"
+    mkdir -p "$cache/cargo" "$cache/rustup" "$cache/pnpm" "$cache/target" \
         "$cache/apt/archives/partial" "$cache/apt/lists/partial"
 
     exec "$runtime" run --rm \
@@ -53,6 +57,7 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
         --volume "$cache/pnpm:/root/.local/share/pnpm/store:z" \
         --volume "$cache/apt/archives:/var/cache/apt/archives:z" \
         --volume "$cache/apt/lists:/var/lib/apt/lists:z" \
+        --volume "$cache/target:/target:z" \
         --workdir /src \
         "$image" /src/scripts/build-release.sh "$@"
 fi
@@ -60,8 +65,9 @@ fi
 # Cargo's fingerprint says nothing about which C library an object was compiled
 # against, so a target directory shared with a Nix build hands this one objects
 # built against a glibc newer than the one being built for, and the artefact
-# stops running on the distribution it was made old for.
-export CARGO_TARGET_DIR=/src/.cache/release/target
+# stops running on the distribution it was made old for. Mounted from outside
+# the repository for the same reason the rest of the cache is.
+export CARGO_TARGET_DIR=/target
 
 fetch() {
     local url="$1" sha256="$2" destination="$3"
