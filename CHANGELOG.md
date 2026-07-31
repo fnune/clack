@@ -53,6 +53,10 @@
 - *(desktop)* Match the left inset to what the scrollbar takes from the right
 - *(desktop)* Spend one inset on the sides rather than two
 - *(desktop)* Follow the desktop from light to dark
+- *(ci)* Read the pnpm version from the desktop manifest
+- *(ci)* Build a release in a container that is pinned to the last digit
+- *(desktop)* Keep a control beside its label however narrow the window is
+- *(desktop)* Draw the window a resize border, and open at its smallest size
 
 ### Refactor
 
