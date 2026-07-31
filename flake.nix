@@ -10,9 +10,16 @@
   };
 
   outputs =
-    { self, nixpkgs, rust-overlay }:
+    {
+      self,
+      nixpkgs,
+      rust-overlay,
+    }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
 
       forAllSystems =
         f:
@@ -47,6 +54,49 @@
         pkgs.webkitgtk_4_1
       ];
       nativeBuildInputsFor = pkgs: [ pkgs.pkg-config ];
+
+      desktopRelease = {
+        version = "0.1.0";
+        hash = "sha256-wpdJLzuocfJ7mMEPhZaAYc1m6vJT2rG9FiiT6TlT9hY=";
+      };
+
+      desktopFor =
+        pkgs:
+        let
+          src = pkgs.fetchurl {
+            url = "https://github.com/fnune/clack/releases/download/v${desktopRelease.version}/Clack-x86_64.AppImage";
+            inherit (desktopRelease) hash;
+          };
+
+          icons = {
+            "32x32" = ./apps/desktop/src-tauri/icons/32x32.png;
+            "128x128" = ./apps/desktop/src-tauri/icons/128x128.png;
+            "512x512" = ./apps/desktop/src-tauri/icons/icon.png;
+          };
+        in
+        pkgs.appimageTools.wrapType2 {
+          pname = "clack-desktop";
+          inherit (desktopRelease) version;
+          inherit src;
+
+          extraInstallCommands = ''
+            install -Dm444 ${./packaging/clack.desktop} \
+              $out/share/applications/clack.desktop
+
+            ${nixpkgs.lib.concatStringsSep "\n" (
+              nixpkgs.lib.mapAttrsToList (size: icon: ''
+                install -Dm444 ${icon} $out/share/icons/hicolor/${size}/apps/clack.png
+              '') icons
+            )}
+          '';
+
+          meta = {
+            description = "Wayland keystroke visualiser, with a tray and a settings window";
+            license = nixpkgs.lib.licenses.mit;
+            platforms = [ "x86_64-linux" ];
+            mainProgram = "clack-desktop";
+          };
+        };
 
       clackFor =
         pkgs:
@@ -83,6 +133,7 @@
       packages = forAllSystems (pkgs: {
         default = clackFor pkgs;
         clack = clackFor pkgs;
+        clack-desktop = desktopFor pkgs;
       });
 
       apps = forAllSystems (pkgs: rec {
@@ -97,7 +148,12 @@
       # a system has been told about, so a profile install leaves Clack unable
       # to open any keyboard.
       nixosModules.default =
-        { config, lib, pkgs, ... }:
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
         let
           cfg = config.programs.clack;
         in
@@ -120,7 +176,12 @@
         };
 
       homeManagerModules.default =
-        { config, lib, pkgs, ... }:
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
         let
           cfg = config.programs.clack;
           toml = pkgs.formats.toml { };
@@ -128,7 +189,9 @@
           withoutUnset =
             attrs:
             lib.filterAttrs (_: value: value != null) (
-              lib.mapAttrs (_: value: if lib.isAttrs value && !lib.isDerivation value then withoutUnset value else value) attrs
+              lib.mapAttrs (
+                _: value: if lib.isAttrs value && !lib.isDerivation value then withoutUnset value else value
+              ) attrs
             );
 
           settings = lib.filterAttrs (_: section: section != { }) (withoutUnset cfg.settings);
@@ -142,6 +205,21 @@
               default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
               defaultText = lib.literalExpression "clack.packages.\${system}.default";
               description = "Which build of Clack to install.";
+            };
+
+            desktop = {
+              enable = lib.mkEnableOption ''
+                the desktop app: a tray icon and a settings window, installed from
+                the AppImage published with the release. It reads the same settings
+                as the command line
+              '';
+
+              package = lib.mkOption {
+                type = lib.types.package;
+                default = self.packages.${pkgs.stdenv.hostPlatform.system}.clack-desktop;
+                defaultText = lib.literalExpression "clack.packages.\${system}.clack-desktop";
+                description = "Which build of the desktop app to install.";
+              };
             };
 
             settings = lib.mkOption {
@@ -179,7 +257,12 @@
                       };
 
                       anchor = lib.mkOption {
-                        type = lib.types.nullOr (lib.types.enum [ "top" "bottom" ]);
+                        type = lib.types.nullOr (
+                          lib.types.enum [
+                            "top"
+                            "bottom"
+                          ]
+                        );
                         default = null;
                         description = "Which edge of the screen the overlay sits against.";
                       };
@@ -242,7 +325,7 @@
           };
 
           config = lib.mkIf cfg.enable {
-            home.packages = [ cfg.package ];
+            home.packages = [ cfg.package ] ++ lib.optional cfg.desktop.enable cfg.desktop.package;
 
             xdg.configFile."clack/config.toml" = lib.mkIf (settings != { }) {
               source = toml.generate "clack-config.toml" settings;
@@ -282,7 +365,9 @@
         };
       });
 
-      checks = forAllSystems (pkgs: { clack = clackFor pkgs; });
+      checks = forAllSystems (pkgs: {
+        clack = clackFor pkgs;
+      });
 
       formatter = forAllSystems (pkgs: pkgs.nixfmt-tree);
     };

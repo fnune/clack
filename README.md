@@ -45,6 +45,22 @@ chmod +x Clack-x86_64.AppImage
 
 It puts an icon in your tray. Click the switch to start showing your keys.
 
+To have it in your application menu, take `clack.desktop` from the same release and point it at
+where you kept the AppImage:
+
+```sh
+install -Dm644 clack.desktop ~/.local/share/applications/clack.desktop
+sed -i "s|^Exec=.*|Exec=$PWD/Clack-x86_64.AppImage|" ~/.local/share/applications/clack.desktop
+```
+
+The entry names its icon `clack`, which your theme has no copy of until you give it one:
+
+```sh
+./Clack-x86_64.AppImage --appimage-extract usr/share/icons >/dev/null
+install -Dm644 squashfs-root/usr/share/icons/hicolor/512x512/apps/clack-desktop.png \
+  ~/.local/share/icons/hicolor/512x512/apps/clack.png
+```
+
 ### The command line
 
 Download `clack-linux-amd64` from the same release and put it on your `PATH`:
@@ -80,6 +96,7 @@ With Home Manager, the same options write the settings file:
 
   programs.clack = {
     enable = true;
+    desktop.enable = true;
     settings = {
       overlay = {
         font = "Iosevka Bold 30";
@@ -97,6 +114,10 @@ Anything left unset is left out of the file, so Clack's own default applies. The
 the Nix store and cannot be written to, so the desktop app says so and treats what you change in
 its window as lasting until it quits. Reading keyboards is still the system's to allow: use the
 NixOS module above, or `--grant-access` below.
+
+`desktop.enable` adds the desktop app, taken from the AppImage published with the release and
+given an application menu entry. Both programs read the one settings file, so there is nothing to
+configure twice.
 
 ## Letting Clack read your keyboard
 

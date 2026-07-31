@@ -27,6 +27,21 @@ overlay:
 artifacts:
     ./scripts/build-release.sh
 
+# Point the Nix desktop package at a release, once its AppImage is published
+pin-desktop version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    url="https://github.com/fnune/clack/releases/download/v{{version}}/Clack-x86_64.AppImage"
+    hash=$(nix hash convert --hash-algo sha256 --to sri "$(nix-prefetch-url "$url")")
+
+    sed -i '/desktopRelease = {/,/};/{
+        s|version = "[^"]*";|version = "{{version}}";|
+        s|hash = "[^"]*";|hash = "'"$hash"'";|
+    }' flake.nix
+
+    echo "clack-desktop now takes v{{version}} from $hash"
+
 # Show what the next release's notes would say
 notes:
     git-cliff --unreleased

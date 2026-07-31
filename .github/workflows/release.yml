@@ -65,6 +65,7 @@ jobs:
             --notes-file release-notes.md \
             dist/clack-linux-amd64 \
             dist/Clack-x86_64.AppImage \
-            dist/checksums.txt
+            dist/checksums.txt \
+            packaging/clack.desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

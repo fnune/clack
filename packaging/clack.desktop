@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Clack
+Comment=Show your keystrokes on screen
+Exec=clack-desktop
+Icon=clack
+Terminal=false
+Categories=Utility;Accessibility;
+Keywords=keystroke;keyboard;overlay;screencast;
+StartupWMClass=clack-desktop
