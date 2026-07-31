@@ -53,13 +53,16 @@ install -Dm644 clack.desktop ~/.local/share/applications/clack.desktop
 sed -i "s|^Exec=.*|Exec=$PWD/Clack-x86_64.AppImage|" ~/.local/share/applications/clack.desktop
 ```
 
-The entry names its icon `clack`, which your theme has no copy of until you give it one:
+The entry names its icon `clack-desktop`, which your theme has no copy of until you give it one:
 
 ```sh
 ./Clack-x86_64.AppImage --appimage-extract usr/share/icons >/dev/null
 install -Dm644 squashfs-root/usr/share/icons/hicolor/512x512/apps/clack-desktop.png \
-  ~/.local/share/icons/hicolor/512x512/apps/clack.png
+  ~/.local/share/icons/hicolor/512x512/apps/clack-desktop.png
 ```
+
+The name matters: the tray publishes its own icons under names beginning `clack`, and an
+application icon called `clack` would be found first and drawn in the tray instead.
 
 ### The command line
 

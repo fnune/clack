@@ -68,35 +68,45 @@
             inherit (desktopRelease) hash;
           };
 
+          extracted = pkgs.appimageTools.extract {
+            pname = "clack-desktop";
+            inherit (desktopRelease) version;
+            inherit src;
+          };
+
           icons = {
             "32x32" = ./apps/desktop/src-tauri/icons/32x32.png;
             "128x128" = ./apps/desktop/src-tauri/icons/128x128.png;
             "512x512" = ./apps/desktop/src-tauri/icons/icon.png;
           };
         in
-        pkgs.appimageTools.wrapType2 {
-          pname = "clack-desktop";
-          inherit (desktopRelease) version;
-          inherit src;
+        pkgs.runCommand "clack-desktop-${desktopRelease.version}"
+          {
+            nativeBuildInputs = [ pkgs.makeWrapper ];
 
-          extraInstallCommands = ''
+            meta = {
+              description = "Wayland keystroke visualiser, with a tray and a settings window";
+              license = nixpkgs.lib.licenses.mit;
+              platforms = [ "x86_64-linux" ];
+              mainProgram = "clack-desktop";
+            };
+          }
+          ''
+            mkdir -p $out/libexec
+            cp -r ${extracted} $out/libexec/clack-desktop
+            chmod -R u+w $out/libexec/clack-desktop
+
+            makeWrapper $out/libexec/clack-desktop/AppRun $out/bin/clack-desktop
+
             install -Dm444 ${./packaging/clack.desktop} \
               $out/share/applications/clack.desktop
 
             ${nixpkgs.lib.concatStringsSep "\n" (
               nixpkgs.lib.mapAttrsToList (size: icon: ''
-                install -Dm444 ${icon} $out/share/icons/hicolor/${size}/apps/clack.png
+                install -Dm444 ${icon} $out/share/icons/hicolor/${size}/apps/clack-desktop.png
               '') icons
             )}
           '';
-
-          meta = {
-            description = "Wayland keystroke visualiser, with a tray and a settings window";
-            license = nixpkgs.lib.licenses.mit;
-            platforms = [ "x86_64-linux" ];
-            mainProgram = "clack-desktop";
-          };
-        };
 
       clackFor =
         pkgs:
