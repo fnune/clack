@@ -35,8 +35,6 @@ pub struct Overlay {
     pub anchor: Anchor,
     /// How long a keystroke stays on screen once typing stops.
     pub timeout_seconds: f32,
-    /// An XKB keymap to use instead of the compositor's own.
-    pub keymap: Option<PathBuf>,
     /// Whether keys with no letter of their own are drawn as glyphs.
     pub symbols: bool,
     /// Replacements for single keys, by keysym name. An empty string hides one.
@@ -65,7 +63,6 @@ impl Default for Overlay {
             margin: style.margin,
             anchor: style.anchor,
             timeout_seconds: Config::default().timeout.as_secs_f32(),
-            keymap: None,
             symbols: false,
             symbol_overrides: HashMap::new(),
         }
@@ -98,7 +95,6 @@ impl Overlay {
             } else {
                 fallback.timeout_seconds
             },
-            keymap: self.keymap.clone(),
             symbols: self.symbols,
             symbol_overrides: self
                 .symbol_overrides
@@ -124,7 +120,6 @@ impl Overlay {
                 margin: held.margin,
                 anchor: held.anchor,
             },
-            keymap: held.keymap.clone(),
             symbols: held.to_symbols(),
         }
     }
@@ -230,13 +225,9 @@ pub fn is_writable() -> Result<bool, SettingsError> {
 /// say nothing about which user is asking or what the file system allows.
 pub fn is_writable_at(path: &Path) -> bool {
     if fs::symlink_metadata(path).is_ok() {
-        // Appending rather than writing, because opening for writing is the
-        // question and truncating the file is not part of it.
         return fs::OpenOptions::new().append(true).open(path).is_ok();
     }
 
-    // Nothing there yet, so what matters is the directory the first write would
-    // put it in.
     path.parent()
         .is_some_and(|directory| fs::create_dir_all(directory).is_ok() && accepts_a_file(directory))
 }
@@ -333,7 +324,6 @@ mod tests {
                 margin: 40,
                 anchor: Anchor::Top,
                 timeout_seconds: 2.5,
-                keymap: Some(PathBuf::from("/tmp/layout.xkb")),
                 symbols: true,
                 symbol_overrides: HashMap::from([("Tab".to_owned(), "→".to_owned())]),
             },
@@ -408,9 +398,6 @@ mod tests {
         fs::remove_dir_all(&directory).unwrap();
     }
 
-    /// The Nix module names its options after these keys, and an unknown one is
-    /// refused rather than ignored, so a rename here breaks it loudly and this
-    /// test is where that shows.
     #[test]
     fn a_file_written_by_the_nix_module_is_understood() {
         let generated = r#"

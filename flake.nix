@@ -119,24 +119,19 @@
           };
         };
 
-      # The settings file, written from the same options both Clack's own
-      # programs read. It cannot install the udev rule, which is the system's to
-      # allow: use the NixOS module for that, or `clack --grant-access`.
       homeManagerModules.default =
         { config, lib, pkgs, ... }:
         let
           cfg = config.programs.clack;
           toml = pkgs.formats.toml { };
 
-          # Only what was actually set reaches the file, so Clack's own defaults
-          # stay the one place they are written down.
-          stated =
+          withoutUnset =
             attrs:
             lib.filterAttrs (_: value: value != null) (
-              lib.mapAttrs (_: value: if lib.isAttrs value && !lib.isDerivation value then stated value else value) attrs
+              lib.mapAttrs (_: value: if lib.isAttrs value && !lib.isDerivation value then withoutUnset value else value) attrs
             );
 
-          settings = lib.filterAttrs (_: section: section != { }) (stated cfg.settings);
+          settings = lib.filterAttrs (_: section: section != { }) (withoutUnset cfg.settings);
         in
         {
           options.programs.clack = {
@@ -194,15 +189,6 @@
                         default = null;
                         example = 1.5;
                         description = "How long a keystroke stays on screen once typing stops.";
-                      };
-
-                      keymap = lib.mkOption {
-                        type = lib.types.nullOr lib.types.path;
-                        default = null;
-                        description = ''
-                          An XKB keymap to use instead of the compositor's own, which is
-                          the right answer almost always, since it is what you configured.
-                        '';
                       };
 
                       symbols = lib.mkOption {

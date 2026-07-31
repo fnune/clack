@@ -74,10 +74,6 @@ struct Cli {
     #[arg(long)]
     reset: bool,
 
-    /// Use this XKB keymap, for a compositor that will not share the one it uses
-    #[arg(long, value_name = "PATH")]
-    keymap: Option<PathBuf>,
-
     /// Read only this device, skipping the usual keyboard test. Repeatable
     #[arg(long = "device", value_name = "PATH", hide = true)]
     devices: Vec<PathBuf>,
@@ -119,10 +115,6 @@ impl Cli {
         if self.no_symbols {
             settings.overlay.symbols = false;
         }
-        if self.keymap.is_some() {
-            settings.overlay.keymap = self.keymap.clone();
-        }
-
         Ok(settings.overlay.to_config())
     }
 }
@@ -331,7 +323,7 @@ fn describe_keymap(keymap: &KeymapSource, seat: Option<&str>) -> String {
         KeymapSource::Unreadable(error) => {
             format!("this desktop sent one but it could not be read: {error}")
         }
-        KeymapSource::Absent => "this desktop shared none; pass --keymap to supply one".to_owned(),
+        KeymapSource::Absent => "this desktop shared none, so keys cannot be named".to_owned(),
     }
 }
 

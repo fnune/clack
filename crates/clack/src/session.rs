@@ -101,7 +101,7 @@ impl<S: Surface> LiveSession<S> {
 
         Ok(Self::from_parts(
             EvdevSource::open(clock)?,
-            translator(config)?,
+            translator()?,
             surface,
             config,
         ))
@@ -119,7 +119,7 @@ impl<S: Surface> LiveSession<S> {
 
         Ok(Self::from_parts(
             EvdevSource::open_named(devices, clock)?,
-            translator(config)?,
+            translator()?,
             surface,
             config,
         ))
@@ -180,9 +180,11 @@ where
     }
 }
 
-fn translator(config: &Config) -> Result<XkbTranslator, SessionError> {
-    let keymap = match &config.keymap {
-        Some(path) => read_keymap(path)?,
+const TEST_KEYMAP: &str = "CLACK_TEST_KEYMAP";
+
+fn translator() -> Result<XkbTranslator, SessionError> {
+    let keymap = match std::env::var_os(TEST_KEYMAP) {
+        Some(path) => read_keymap(Path::new(&path))?,
         None => wayland::probe()?.keymap.ok_or(SessionError::NoKeymap)?,
     };
 

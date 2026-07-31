@@ -8,7 +8,6 @@ export type Overlay = {
   margin: number;
   anchor: Anchor;
   timeout_seconds: number;
-  keymap: string | null;
   symbols: boolean;
   symbol_overrides: Record<string, string>;
 };
@@ -124,7 +123,6 @@ export function parseSettings(value: unknown): Settings {
       margin: count(overlay, "margin"),
       anchor: anchor(overlay, "anchor"),
       timeout_seconds: count(overlay, "timeout_seconds"),
-      keymap: optionalText(overlay, "keymap"),
       symbols: flag(overlay, "symbols"),
       symbol_overrides: table(overlay, "symbol_overrides"),
     },

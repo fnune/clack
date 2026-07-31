@@ -60,10 +60,10 @@ exec 3<> "$keyboard"
 # Empty, so the developer's own settings cannot decide whether this passes.
 : > "$work/config.toml"
 
-./target/debug/clack \
+CLACK_TEST_KEYMAP=crates/clack/tests/fixtures/us.xkb \
+    ./target/debug/clack \
     --config "$work/config.toml" \
     --device "$keyboard" \
-    --keymap crates/clack/tests/fixtures/us.xkb \
     --timeout 30 \
     --margin 64 &
 clack=$!

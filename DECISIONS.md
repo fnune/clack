@@ -250,7 +250,10 @@ The layers: a pure domain; translation against a committed xkb keymap fixture, c
 shift levels, unmapped codes and lone modifiers without a compositor; the pipeline through
 `Session::from_parts` with a pipe source, that fixture, and a recording surface; and `scripts/e2e.sh`,
 which runs the built binary inside a headless [sway](https://swaywm.org/), types through a pipe, and
-checks from screenshots that the overlay appeared where it is anchored and nowhere else.
+checks from screenshots that the overlay appeared where it is anchored and nowhere else. That
+compositor has no keyboard and so shares no keymap, and the layout reaches the binary through
+`CLACK_TEST_KEYMAP`: an environment variable rather than a flag or a setting, because what a test
+needs in order to be deterministic is not something to ask a user to configure.
 
 ## Prior art
 
