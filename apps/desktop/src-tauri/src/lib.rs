@@ -391,9 +391,6 @@ fn load_settings() -> Result<Settings, String> {
     Settings::load().map_err(|error| error.to_string())
 }
 
-/// Where the settings live and whether they are Clack's to change, so the window
-/// can say which of the two it is doing rather than reporting a failure for a
-/// file that was never meant to be written.
 #[tauri::command]
 fn settings_file() -> Result<SettingsFile, String> {
     let path = clack::settings::path().map_err(|error| error.to_string())?;
@@ -407,12 +404,10 @@ fn settings_file() -> Result<SettingsFile, String> {
 #[tauri::command]
 fn save_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     dress_window(&app, settings.desktop.decorations);
-    keep(&settings)
+    save_if_writable(&settings)
 }
 
-/// A file someone else generates is left as it is. The change still holds for as
-/// long as Clack is running, which is what the window says it does.
-fn keep(settings: &Settings) -> Result<(), String> {
+fn save_if_writable(settings: &Settings) -> Result<(), String> {
     let path = clack::settings::path().map_err(|error| error.to_string())?;
 
     if !clack::settings::is_writable_at(&path) {
@@ -431,8 +426,6 @@ fn settings_backup_path() -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
-/// With a file Clack may not write there is nothing to replace and nothing to
-/// keep a copy of, so the defaults are handed back for the session instead.
 #[tauri::command]
 fn reset_settings(app: AppHandle) -> Result<Settings, String> {
     let path = clack::settings::path().map_err(|error| error.to_string())?;
@@ -467,7 +460,7 @@ fn ready(app: AppHandle) {
 
 #[tauri::command]
 fn start(app: AppHandle, settings: Settings) -> Result<Status, String> {
-    keep(&settings)?;
+    save_if_writable(&settings)?;
     start_session(&app, &settings)?;
     publish(&app);
 

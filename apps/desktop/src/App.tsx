@@ -31,9 +31,6 @@ const DIRECTIONS = [
   "SouthEast",
 ] as const;
 
-/// A window that draws its own frame gets no resize border from the desktop, so
-/// it lays one over its edges and asks the compositor to take the drag from
-/// there. The compositor resizes; nothing here follows the pointer.
 function Grips() {
   return (
     <div className="grips" aria-hidden="true">
@@ -418,9 +415,6 @@ export function App() {
             </div>
 
             {file !== null && !file.writable && (
-              // Not a fault: someone chose to keep these settings elsewhere, and
-              // the window's job is to say what that means for a change made
-              // here rather than to complain about it.
               <div className="row verdict kept" title={file.path}>
                 <span className="headline">
                   <span className="mark" aria-hidden="true" />
@@ -589,8 +583,6 @@ export function App() {
           {confirmingReset ? (
             <div className="confirm">
               {file !== null && !file.writable ? (
-                // There is no file of Clack's to replace, so there is nothing to
-                // keep a copy of either.
                 <p className="ask">Reset everything? The file stays as it is</p>
               ) : (
                 <p className="ask" title={askedInFull(backup)}>

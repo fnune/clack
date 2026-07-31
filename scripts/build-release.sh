@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Builds what a release ships: the command line binary and the desktop AppImage.
-#
-# Nix is the development environment, but a Nix build links against /nix/store
-# and runs on no machine that lacks it. Releases are built on Ubuntu 22.04, the
-# oldest glibc still under security support, and this script re-executes itself
-# in that container so CI and a laptop produce the same artefacts from the same
-# command.
-#
-# Every version the build reaches for is fixed: an image digest, an archive
-# snapshot, a toolchain version, a checksum, a commit. An unpinned download is
-# a build that changes on its own.
 set -euo pipefail
 
 image="docker.io/library/ubuntu:22.04@sha256:0d779ea97881505f5ef0039336ee85edba27519bdba968c284c86ee066a973c8"
@@ -24,9 +13,6 @@ rustup_sha256="4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
 appimagetool_version="1.9.0"
 appimagetool_sha256="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1"
 
-# What Tauri's AppImage bundler fetches for itself, at the versions it asks for.
-# Seeding its cache is the only way to stop it pulling two of these from a
-# branch that moves.
 apprun_sha256="f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f"
 linuxdeploy_sha256="e762bea85c8eb0d4b3508d46e5c1f037f717d0f9303ae3b4aafc8b04991fa1ef"
 linuxdeploy_appimage_plugin_sha256="1da16a46fa5e058ae740e7c35ed0d36d86cb869ac9cc8a5fd9a1847d7978d99a"
@@ -41,10 +27,6 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
         exit 1
     }
 
-    # Outside the repository, because apt runs as its own user inside the
-    # container and a rootless runtime maps that to a host id this one cannot
-    # read: left in the working tree, it stops Nix from copying the source at
-    # all.
     cache="${XDG_CACHE_HOME:-$HOME/.cache}/clack/release"
     mkdir -p "$cache/cargo" "$cache/rustup" "$cache/pnpm" "$cache/target" \
         "$cache/apt/archives/partial" "$cache/apt/lists/partial"
@@ -62,11 +44,6 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
         "$image" /src/scripts/build-release.sh "$@"
 fi
 
-# Cargo's fingerprint says nothing about which C library an object was compiled
-# against, so a target directory shared with a Nix build hands this one objects
-# built against a glibc newer than the one being built for, and the artefact
-# stops running on the distribution it was made old for. Mounted from outside
-# the repository for the same reason the rest of the cache is.
 export CARGO_TARGET_DIR=/target
 
 fetch() {
@@ -75,18 +52,13 @@ fetch() {
     echo "$sha256  $destination" | sha256sum --check --quiet
 }
 
-# A snapshot of the archive as it stood at one instant, so the same build does
-# not pick up a newer libwebkit next month. The packages are signed either way:
-# the keyring in the image is what says they are Ubuntu's, not the transport.
 export DEBIAN_FRONTEND=noninteractive
 for suite in jammy jammy-updates jammy-security; do
     echo "deb http://snapshot.ubuntu.com/ubuntu/$archive_snapshot $suite main universe"
 done > /etc/apt/sources.list
 cat > /etc/apt/apt.conf.d/99-clack-snapshot <<'EOF'
 Acquire::Check-Valid-Until "false";
-Acquire::https::snapshot.ubuntu.com::Verify-Peer "false";
-# The archive is mounted from the cache, so a rebuild asks Canonical for
-# nothing it has already been given.
+Acquire::https::snapshot.ubuntu.com::Verify-Peer "false"; # the keyring signs the packages, not TLS
 Binary::apt::APT::Keep-Downloaded-Packages "true";
 EOF
 
@@ -120,8 +92,6 @@ if [[ ! -x /root/.cargo/bin/cargo ]]; then
     fetch "https://static.rust-lang.org/rustup/archive/$rustup_version/x86_64-unknown-linux-gnu/rustup-init" \
         "$rustup_sha256" /tmp/rustup-init
     chmod +x /tmp/rustup-init
-    # The toolchain version itself lives in rust-toolchain.toml, which rustup
-    # reads on the first cargo call.
     /tmp/rustup-init -y --profile minimal --no-modify-path --default-toolchain none
 fi
 export PATH="/root/.cargo/bin:$PATH"
@@ -174,19 +144,12 @@ fi
 
 export APPIMAGE_EXTRACT_AND_RUN=1
 
-# The tray comes from the libappindicator crate rather than Tauri's own tray,
-# so Tauri's bundler never learns that the indicator library has to travel with
-# the app. Handing it to linuxdeploy brings its dependencies along with it.
+# Tauri's bundler ships its own tray's library, and Clack's tray is the libappindicator crate.
 "$tools/linuxdeploy-x86_64.AppImage" --appdir "$appdir" \
     --library /usr/lib/x86_64-linux-gnu/libayatana-appindicator3.so.1
 
-# Mesa loads the host's Wayland client library and expects the host's symbols
-# with it. An Ubuntu 22.04 copy travelling inside the AppImage wins the lookup
-# and EGL then fails to open a display at all.
-rm -f "$appdir"/usr/lib/libwayland-*.so.*
+rm -f "$appdir"/usr/lib/libwayland-*.so.* # mesa loads the host's and needs its symbols
 
-# linuxdeploy pins the backend to X11 for a Tauri bug that no longer bites.
-# X11 stays the default; this only lets a caller ask for Wayland.
 # shellcheck disable=SC2016 # the hook expands it, not this script
 sed -i 's|^export GDK_BACKEND=x11|export GDK_BACKEND="${GDK_BACKEND:-x11}"|' \
     "$appdir/apprun-hooks/linuxdeploy-plugin-gtk.sh"

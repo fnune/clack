@@ -14,8 +14,6 @@ jobs:
     permissions:
       checks: read
     steps:
-      # A tag does not trigger CI, but the commit it points at already did, and
-      # check runs belong to the commit.
       - name: Wait for CI to pass
         run: |
           for _ in $(seq 60); do
@@ -48,10 +46,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Nix builds every check, but nothing shipped to users comes out of it: a
-      # Nix build links against /nix/store. The script builds inside a pinned
-      # Ubuntu 22.04 container instead, so the runner supplies nothing but a
-      # container runtime and a laptop can produce the same artefacts.
       - run: ./scripts/build-release.sh
 
       - name: Write the release notes

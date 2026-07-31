@@ -19,8 +19,6 @@
      to the same inset rather than guessed at. */
   --inset: 16px;
   --scrollbar: 11px;
-  /* The resize border the window draws for itself. Wider at the corners, which
-     is where two directions have to be told apart by aim alone. */
   --grip: 6px;
   --grip-corner: 16px;
 
@@ -138,11 +136,6 @@ body {
   background-color: var(--ink-quiet);
 }
 
-/* A compositor offers a resize border around the frame it drew itself, so a
-   window wearing its own frame has none, and the edge either misses or catches
-   whatever is under it. These strips are that border, handed back to the
-   compositor on the way down so it resizes rather than the app guessing at
-   pointer positions. */
 .grips {
   position: fixed;
   inset: 0;
@@ -747,8 +740,6 @@ h2 {
   rotate: 45deg;
 }
 
-/* Settings kept by something else are a fact, not a fault, so the row is
-   ordinary text with a quiet dot rather than the amber a warning wears. */
 .verdict.kept {
   color: var(--ink);
 }
