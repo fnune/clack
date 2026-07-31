@@ -119,6 +119,11 @@ NixOS module above, or `--grant-access` below.
 given an application menu entry. Both programs read the one settings file, so there is nothing to
 configure twice.
 
+The two are versioned apart. The command line is built from the commit your input points at; the
+desktop app is a published artefact, and what you get is the release that commit names, which is
+the last one made rather than the source beside it. Pinning the input to today's `main` still
+installs the last released app, so the two can differ until a release catches up.
+
 ## Letting Clack read your keyboard
 
 Clack reads the kernel's input devices, which on most systems needs permission your user does not

@@ -230,6 +230,12 @@ branch that moves.
 - Versions live in two Cargo manifests, because the desktop app is outside the workspace and cannot
   inherit one. `scripts/set-version.sh` writes both, and `just release` calls it, prepends the
   changelog with [git-cliff](https://git-cliff.org/), and pushes a tag CI turns into a draft release.
+- Nix builds the command line from source and takes the desktop app from a release, because
+  building it would mean building a browser engine, and a Nix webkitgtk cannot reach the GPU
+  drivers of a host that is not NixOS. So the two are versioned apart: a flake input pinned to a
+  commit still installs the release that commit's `desktopRelease` names, which is the last one
+  published rather than the source next to it. `just pin-desktop` moves that pin once a release
+  exists to move it to.
 
 ## Testing
 
