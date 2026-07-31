@@ -51,6 +51,12 @@ jobs:
           path: ~/.local/share/pnpm/store
           key: pnpm-${{ runner.os }}-${{ hashFiles('apps/desktop/pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: apps/desktop/src-tauri
+      # The desktop app is outside the Cargo workspace, so nothing in the other
+      # job compiles it, and a release was the first thing that did.
+      - run: nix develop ../.. --command cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: nix develop ../.. --command pnpm install --frozen-lockfile
       - run: nix develop ../.. --command pnpm check
       - run: nix develop ../.. --command pnpm typecheck
