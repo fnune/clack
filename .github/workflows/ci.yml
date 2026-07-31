@@ -11,6 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
+      # The store holds the toolchain and every library the shell brings in, so
+      # a run without it fetches and builds them again. Keyed on the lock, since
+      # that is what decides the contents, and collected down to a size that
+      # leaves the cache room for anything else.
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust-toolchain.toml') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          gc-max-store-size-linux: 4G
+      # Nix supplies the compiler; what the compiler produces lands in ./target,
+      # and that is the slow part of every step below.
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - run: nix develop --command cargo fmt --check
       - run: nix develop --command cargo clippy --all-targets -- -D warnings
       - run: nix develop --command cargo test
@@ -26,6 +38,19 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
+      # The same shell, so the same cache. Restored but never saved: two jobs
+      # writing one key means one of them uploads a store the other's run then
+      # discards.
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust-toolchain.toml') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+          save: false
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/desktop/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
       - run: nix develop ../.. --command pnpm install --frozen-lockfile
       - run: nix develop ../.. --command pnpm check
       - run: nix develop ../.. --command pnpm typecheck
