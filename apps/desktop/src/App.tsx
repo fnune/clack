@@ -19,6 +19,37 @@ const EMPTY_STATUS: Status = { running: false, failure: null };
 /// keyboard and reaching for the tray cannot outrun it.
 const WRITE_DELAY = 250;
 
+const DIRECTIONS = [
+  "North",
+  "South",
+  "East",
+  "West",
+  "NorthWest",
+  "NorthEast",
+  "SouthWest",
+  "SouthEast",
+] as const;
+
+/// A window that draws its own frame gets no resize border from the desktop, so
+/// it lays one over its edges and asks the compositor to take the drag from
+/// there. The compositor resizes; nothing here follows the pointer.
+function Grips() {
+  return (
+    <div className="grips" aria-hidden="true">
+      {DIRECTIONS.map((direction) => (
+        <div
+          key={direction}
+          className={`grip ${direction.toLowerCase()}`}
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            void getCurrentWindow().startResizeDragging(direction);
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /// IEC 5010, drawn as geometry rather than a full circle with the gap covered
 /// over: the arc simply stops where the stem passes through.
 function PowerRing() {
@@ -314,6 +345,8 @@ export function App() {
 
   return (
     <>
+      {!settings.desktop.decorations && <Grips />}
+
       {!settings.desktop.decorations && (
         // The window has no title bar of its own to carry the name, or to be
         // taken hold of. Outside `main` so it reaches the window's own edges:
