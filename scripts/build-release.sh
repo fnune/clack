@@ -42,7 +42,8 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
     }
 
     cache="$root/.cache/release"
-    mkdir -p "$cache/cargo" "$cache/rustup" "$cache/pnpm"
+    mkdir -p "$cache/cargo" "$cache/rustup" "$cache/pnpm" \
+        "$cache/apt/archives/partial" "$cache/apt/lists/partial"
 
     exec "$runtime" run --rm \
         --env CLACK_RELEASE_BUILDER=1 \
@@ -50,9 +51,17 @@ if [[ -z ${CLACK_RELEASE_BUILDER:-} ]]; then
         --volume "$cache/cargo:/root/.cargo:z" \
         --volume "$cache/rustup:/root/.rustup:z" \
         --volume "$cache/pnpm:/root/.local/share/pnpm/store:z" \
+        --volume "$cache/apt/archives:/var/cache/apt/archives:z" \
+        --volume "$cache/apt/lists:/var/lib/apt/lists:z" \
         --workdir /src \
         "$image" /src/scripts/build-release.sh "$@"
 fi
+
+# Cargo's fingerprint says nothing about which C library an object was compiled
+# against, so a target directory shared with a Nix build hands this one objects
+# built against a glibc newer than the one being built for, and the artefact
+# stops running on the distribution it was made old for.
+export CARGO_TARGET_DIR=/src/.cache/release/target
 
 fetch() {
     local url="$1" sha256="$2" destination="$3"
@@ -70,6 +79,9 @@ done > /etc/apt/sources.list
 cat > /etc/apt/apt.conf.d/99-clack-snapshot <<'EOF'
 Acquire::Check-Valid-Until "false";
 Acquire::https::snapshot.ubuntu.com::Verify-Peer "false";
+# The archive is mounted from the cache, so a rebuild asks Canonical for
+# nothing it has already been given.
+Binary::apt::APT::Keep-Downloaded-Packages "true";
 EOF
 
 apt-get update -qq
@@ -136,7 +148,7 @@ mkdir -p "$dist"
 
 cd /src
 cargo build --release --locked --package clack-cli
-install -m755 target/release/clack "$dist/clack-linux-amd64"
+install -m755 "$CARGO_TARGET_DIR/release/clack" "$dist/clack-linux-amd64"
 
 cd /src/apps/desktop
 
@@ -147,7 +159,7 @@ corepack prepare --activate
 pnpm install --frozen-lockfile
 pnpm tauri build --bundles appimage -- --locked
 
-bundle="/src/apps/desktop/src-tauri/target/release/bundle/appimage"
+bundle="$CARGO_TARGET_DIR/release/bundle/appimage"
 appdir="$(find "$bundle" -maxdepth 1 -name '*.AppDir' | head -1)"
 if [[ -z $appdir ]]; then
     echo "Tauri left no AppDir behind in $bundle" >&2
