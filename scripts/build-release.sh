@@ -164,7 +164,15 @@ appimagetool \
     --no-appstream \
     --mksquashfs-opt -mkfs-time --mksquashfs-opt "$epoch" \
     --mksquashfs-opt -all-time --mksquashfs-opt "$epoch" \
+    --mksquashfs-opt -all-root \
     "$appdir" "$dist/Clack-x86_64.AppImage"
+
+# What went into the bundle, so two builds that disagree can be compared without
+# shipping 80 megabytes around.
+{
+    (cd "$appdir" && find . -type f -exec sha256sum {} + | sort -k2)
+    (cd "$appdir" && find . -type l -printf '%p -> %l\n' | sort)
+} > "$dist/appdir-manifest.txt"
 
 cd "$dist"
 sha256sum clack-linux-amd64 Clack-x86_64.AppImage > checksums.txt

@@ -79,3 +79,15 @@ jobs:
             echo "  published: $published"
             exit 1
           fi
+
+  artifacts:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - run: ./scripts/build-release.sh
+      - run: sha256sum dist/clack-linux-amd64 dist/Clack-x86_64.AppImage
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: appdir-manifest
+          path: dist/appdir-manifest.txt
