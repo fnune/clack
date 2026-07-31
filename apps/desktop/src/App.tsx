@@ -148,7 +148,7 @@ function pangoFamily(font: string): string {
 function verdict(diagnosis: Diagnosis | null): Verdict {
   if (diagnosis === null) {
     return {
-      headline: "Checking what Clack can do here",
+      headline: "Checking",
       detail: "Looking for a keyboard to read and a way to draw the overlay.",
       ready: false,
     };
@@ -156,7 +156,7 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
 
   if (diagnosis.usable) {
     return {
-      headline: "Clack can read your keyboard",
+      headline: "Ready to show your keys",
       detail: "Clack can read your keyboard and draw the overlay above other windows.",
       ready: true,
     };
@@ -165,13 +165,13 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
   if (diagnosis.keyboards === 0) {
     return diagnosis.ruleInstalled
       ? {
-          headline: "No keyboard Clack can read",
+          headline: "No readable keyboard",
           detail:
             "Reading keyboards is allowed, but none is readable yet. Log out and back in, or plug one in.",
           ready: false,
         }
       : {
-          headline: "Clack needs your permission",
+          headline: "Needs your permission",
           detail: "Clack needs your permission to read your keyboard.",
           ready: false,
         };
@@ -179,7 +179,7 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
 
   if (!diagnosis.layerShell) {
     return {
-      headline: "This desktop cannot show the overlay",
+      headline: "No overlay here",
       detail:
         "This desktop has no layer shell, so the overlay cannot be drawn above other windows.",
       ready: false,
@@ -187,7 +187,7 @@ function verdict(diagnosis: Diagnosis | null): Verdict {
   }
 
   return {
-    headline: "This desktop shared no keyboard layout",
+    headline: "No keyboard layout",
     detail: "This desktop did not share its keyboard layout, so keys cannot be named.",
     ready: false,
   };
@@ -418,9 +418,8 @@ export function App() {
               <div className="row verdict kept" title={file.path}>
                 <span className="headline">
                   <span className="mark" aria-hidden="true" />
-                  <span className="said">Settings are kept elsewhere</span>
+                  <span className="said">Read-only settings: edits last until you quit</span>
                 </span>
-                <span className="value">Changes last until Clack quits</span>
               </div>
             )}
           </div>

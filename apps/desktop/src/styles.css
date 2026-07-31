@@ -673,7 +673,6 @@ h2 {
   align-items: center;
   gap: 9px;
   min-width: 0;
-  font-weight: 600;
 }
 
 /* Short enough to fit, and the row's title carries the rest. */
@@ -741,17 +740,12 @@ h2 {
 }
 
 .verdict.kept {
-  color: var(--ink);
+  grid-template-columns: minmax(0, 1fr);
+  color: var(--ink-quiet);
 }
 
 .verdict.kept .mark {
   background: var(--ink-quiet);
-}
-
-.verdict.kept .value {
-  color: var(--ink-quiet);
-  text-align: right;
-  white-space: nowrap;
 }
 
 .verdict.kept .mark::after {
