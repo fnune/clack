@@ -1,7 +1,7 @@
 [package]
 name = "clack-desktop"
 description = "Desktop application for Clack"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/fnune/clack"
@@ -19,7 +19,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 cairo-rs = "0.21"
-clack = { path = "../../../crates/clack", version = "0.2.2" }
+clack = { path = "../../../crates/clack", version = "0.2.3" }
 gtk = "0.18"
 libappindicator = "0.9"
 png = "0.17"

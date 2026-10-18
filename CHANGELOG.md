@@ -1,3 +1,9 @@
+## [0.2.3] - 2026-10-18
+
+### Bug fixes
+
+- *(release)* Pin linuxdeploy-plugin-appimage to a tagged release, since the continuous build is replaced in place
+
 ## [0.2.2] - 2026-07-31
 
 ### Bug fixes
