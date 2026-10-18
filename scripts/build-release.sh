@@ -19,7 +19,8 @@ appimagetool_sha256="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06
 
 apprun_sha256="f30140a43a0a59e46db21bdefdf749b9e9f2c6946e92afabbacf98b8ae73fb4f"
 linuxdeploy_sha256="e762bea85c8eb0d4b3508d46e5c1f037f717d0f9303ae3b4aafc8b04991fa1ef"
-linuxdeploy_appimage_plugin_sha256="1da16a46fa5e058ae740e7c35ed0d36d86cb869ac9cc8a5fd9a1847d7978d99a"
+linuxdeploy_appimage_plugin_version="1-alpha-20250213-1"
+linuxdeploy_appimage_plugin_sha256="992d502a248e14ab185448ddf6f6e7d25558cb84d4623c354c3af350c25fccb3"
 linuxdeploy_gtk_plugin_rev="b5eb8d05b4c0ed40107fe2158c5d8527f94568ef"
 linuxdeploy_gstreamer_plugin_rev="2a2e67491c32995a3f279ad0ecbe77abd512b42a"
 
@@ -113,7 +114,7 @@ if [[ ! -e "$tools/AppRun-x86_64" ]]; then
         "$apprun_sha256" "$tools/AppRun-x86_64"
     fetch "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage" \
         "$linuxdeploy_sha256" "$tools/linuxdeploy-x86_64.AppImage"
-    fetch "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage" \
+    fetch "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/$linuxdeploy_appimage_plugin_version/linuxdeploy-plugin-appimage-x86_64.AppImage" \
         "$linuxdeploy_appimage_plugin_sha256" "$tools/linuxdeploy-plugin-appimage.AppImage"
     curl -fsSL -o "$tools/linuxdeploy-plugin-gtk.sh" \
         "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/$linuxdeploy_gtk_plugin_rev/linuxdeploy-plugin-gtk.sh"
