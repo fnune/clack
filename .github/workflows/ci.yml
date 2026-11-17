@@ -8,55 +8,56 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust-toolchain.toml') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          gc-max-store-size-linux: 4G
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-      - run: nix develop --command cargo fmt --check
-      - run: nix develop --command cargo clippy --all-targets -- -D warnings
-      - run: nix develop --command cargo test
-      - run: nix develop --command cargo deny check
-      - run: nix develop --command ./scripts/e2e.sh
-      - run: nix build
+          persist-credentials: false
+      - uses: fnune/ci@622d47de69c75cdca85801f36181a24a1c71b184
+        with:
+          cache-paths: |
+            .cargo/registry
+            .cargo/git
+            ./target
+          cache-key-files: Cargo.lock
+          command: |
+            cargo fmt --check
+            cargo clippy --all-targets -- -D warnings
+            cargo test
+            cargo deny check
+            ./scripts/e2e.sh
+            nix build
 
   desktop:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/desktop
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock', 'rust-toolchain.toml') }}
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          save: false
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+          persist-credentials: false
+      - uses: fnune/ci@622d47de69c75cdca85801f36181a24a1c71b184
         with:
-          path: ~/.local/share/pnpm/store
-          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/desktop/pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
-        with:
-          workspaces: apps/desktop/src-tauri
-      - run: nix develop ../.. --command cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
-      - run: nix develop ../.. --command pnpm install --frozen-lockfile
-      - run: nix develop ../.. --command pnpm check
-      - run: nix develop ../.. --command pnpm typecheck
-      - run: nix develop ../.. --command pnpm build
+          working-directory: apps/desktop
+          cache-paths: |
+            .cargo/registry
+            .cargo/git
+            .local/share/pnpm/store
+            ./src-tauri/target
+          cache-key-files: apps/desktop/pnpm-lock.yaml
+          command: |
+            cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+            pnpm install --frozen-lockfile
+            pnpm check
+            pnpm typecheck
+            pnpm build
 
   published:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Check the released AppImage is the one the flake pins
@@ -82,7 +83,7 @@ jobs:
 
   artifacts:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - run: ./scripts/build-release.sh
